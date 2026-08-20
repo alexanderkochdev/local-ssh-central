@@ -1,0 +1,75 @@
+# --- Node / pnpm ---
+node_modules/
+.pnpm-store/
+.pnpm-workspace-state.json
+
+# --- Build output ---
+dist/
+out/
+build/
+release/
+webview-dist/
+*.tsbuildinfo
+coverage/
+
+# --- Electron ---
+apps/desktop/dist/
+apps/desktop/out/
+apps/desktop/release/
+*.vsix
+
+# --- App runtime data (NEVER commit local vaults / secrets!) ---
+*.kdbx
+*.kdbx.bak
+apps/desktop/user-data/
+**.local/
+
+# --- Vite / bundler cache ---
+.vite/
+*.vite/
+.cache/
+.turbo/
+
+# --- Environment & secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_ed25519
+
+# --- Logs ---
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# --- IDE ---
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/launch
+!.vscode/settings
+!.vscode/tasks
+!.vscode/snippets
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- OS-specific ignore overrides via gitattributes ---
+
+# --- AI tooling local state ---
+.ds/

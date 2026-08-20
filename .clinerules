@@ -1,0 +1,29 @@
+> **📌 Living Document** — Projektregeln & Konventionen.
+> **⚠️ Keep updated!** Bei Regeländerungen ergänzen.
+
+# .clinerules
+
+## Kernregeln
+
+1. **Ownership**: Aufgaben zu 100 % liefern. Build/Tests/Lint selbst verifizieren, bevor
+   eine Aufgabe als erledigt gilt. Lücken proaktiv schließen.
+2. **Kein Commit/Tag/Release ohne expliziten User-Wunsch.** Kein automatischer Versions-Bump.
+3. **Renderer vertrauenswürdig behandeln = nie Secrets.**
+   Vault, ssh2, SFTP und Dateizugriff gehören ausschließlich in den Main-Process.
+4. **TypeScript strict**: `noUncheckedIndexedAccess`, `noImplicitOverride`, `verbatimModuleSyntax`.
+5. **Surgical Editing**: `edit_file`/`insert_in_file` bevorzugen; `write_file` nur für neue Dateien.
+6. **Naming**: funktionsbasiert & kontextbewusst. Scope-/Projektnamen nie im Namen wiederholen.
+   Booleans mit `is`/`has`/`should`. Keine Abkürzungen.
+7. **Keine Emojis in Code, Docs, Prompts, Configs, Commit-Messages.**
+8. **Conventional Commits**: `feat:`, `fix:`, `refactor:`, `docs:`, `build:`, `chore:`, `test:`.
+9. **Prettier**: 2 Spaces, single quotes, LF. `pnpm format` vor Abschluss.
+10. **Clean Code**: DRY, KISS, SRP. Keine toten Imports/Code, kein `console.log` im Product.
+11. **Fehlerbehandlung**: async → try/catch; Resourcen (Listener/Timer/Streams) aufräumen.
+12. **Security**: Eingaben validieren, Safe-Path-Guard für Pfade, keine Hardcoded Secrets.
+13. **Living Documents pflegen**: `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `.clinerules`.
+
+## Branch-Regeln
+
+- `develop` = Integrationsbranch (Standard). Niemals direkt auf `main` committen.
+- `feature/*` von `develop` → PR → `develop`.
+- `release/x.y.z` von `develop` → PR → `main`, Tag `vx.y.z`.

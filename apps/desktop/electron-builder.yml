@@ -1,0 +1,29 @@
+appId: dev.alexanderkoch.sshcentral
+productName: SSH Central
+copyright: Copyright (c) 2026 Alexander Koch
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+    - deb
+  category: Network
+  maintainer: Alexander Koch <https://www.alexanderkoch.dev/>
+  synopsis: Fast, secure SSH client and SFTP file manager
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}

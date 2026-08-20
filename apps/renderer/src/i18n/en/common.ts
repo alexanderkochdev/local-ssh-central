@@ -1,0 +1,16 @@
+/** General UI texts (English). */
+export const common: Record<string, string> = {
+  'app.title': 'SSH Central',
+  'tabs.hosts': 'Hosts',
+  'tabs.vault': 'Vault',
+  'menu.options': 'Options',
+  'menu.changeMasterPassword': 'Change master password',
+  'action.lock': 'Lock vault',
+  'action.cancel': 'Cancel',
+  'action.save': 'Save',
+  'action.delete': 'Delete',
+  'action.edit': 'Edit',
+  'action.add': 'Add',
+  'action.close': 'Close',
+  'action.loading': 'Loading…',
+};

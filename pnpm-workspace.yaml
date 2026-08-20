@@ -1,0 +1,14 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Native/Optimizer-Build-Skripte, die pnpm ausfuehren darf (pnpm v11 `allowBuilds`).
+# - ssh2 / cpu-features: optionale native Beschleunigung fuer SSH
+# - esbuild: Binary-Setup fuer Vite/electron-vite
+# - electron-winstaller: NSIS-Installer fuer Windows (electron-builder)
+allowBuilds:
+  cpu-features: true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  ssh2: true

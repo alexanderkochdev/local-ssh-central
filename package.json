@@ -1,0 +1,60 @@
+{
+  "name": "local-ssh-central",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SSH Central - a fast, secure, open-source SSH client & SFTP file manager for Windows and Linux. Electron + React + Material UI monorepo.",
+  "author": {
+    "name": "Alexander Koch",
+    "url": "https://www.alexanderkoch.dev/"
+  },
+  "license": "GPL-3.0-only",
+  "keywords": [
+    "ssh",
+    "sftp",
+    "terminal",
+    "electron",
+    "keepass",
+    "kdbx"
+  ],
+  "homepage": "https://www.alexanderkoch.dev/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexanderkochdev/local-ssh-central"
+  },
+  "bugs": {
+    "url": "https://github.com/alexanderkochdev/local-ssh-central/issues"
+  },
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @ssh-central/desktop dev",
+    "dev:desktop": "pnpm --filter @ssh-central/desktop dev",
+    "dev:renderer": "pnpm --filter @ssh-central/renderer dev",
+    "build": "turbo run build",
+    "build:desktop": "pnpm --filter @ssh-central/desktop build",
+    "build:renderer": "pnpm --filter @ssh-central/renderer build",
+    "package": "pnpm --filter @ssh-central/desktop package",
+    "test": "turbo run test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "turbo run typecheck",
+    "format": "pnpm exec prettier --write .",
+    "format:check": "pnpm exec prettier --check .",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.11",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0"
+  }
+}
