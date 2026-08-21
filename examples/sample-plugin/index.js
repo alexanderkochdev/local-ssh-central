@@ -20,7 +20,7 @@ module.exports = {
     });
 
     // Auf Main-Events reagieren (sshEvent, sftpEvent, vaultEvent, ...).
-    api.events.on((channel, payload) => {
+    api.events.on((channel) => {
       if (channel.endsWith(':event')) {
         api.log.info(`[sample] Event: ${channel}`);
       }
