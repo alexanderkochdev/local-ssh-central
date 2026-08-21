@@ -4,7 +4,21 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+## [1.0.0] - 2026-08-21
+
+Erster Open-Source-Release (GPL-3.0).
+
+### Added (Release-Highlights)
+- **Sortierung + Filter** in allen Listen (Hosts, Passwörter, SSH-Keys) inkl. Tags/Notizen-Anzeige
+- **Security-Härtung**: TOFU-Host-Key-Verifizierung (MitM-Schutz), Unlock-Brute-Force-Throttle,
+  Pfad-Guards (assertSafePath/assertNotProtected), Master-Passwort-Policy (≥12 Zeichen),
+  pnpm-Override für `@xmldom/xmldom` (5 High-Findings behoben)
+- **Plugin-Plattform**: ZIP-installierbare Plugins mit UI-iframes (`plugin://`), IPC-Bridge,
+  Dialogen, verschlüsselten Secrets, Persistenz, Berechtigungen, Host-Fähigkeiten, Logging
+- **Plugin-SDK** (`@ssh-central/plugin-sdk`): vollständig typisierte `PluginApi`, `definePlugin`,
+  `ssh-central-plugin`-CLI (build + pack); auf npm publiziert
+- **Umfassende Test-Suite**: 70+ Vitest-Tests für Logik & Security in separaten `tests/`-Ordnern
+- **CI**: Package + Artifacts bei jedem Push; App-Logo (Header + Login)
 
 ### Added
 - **i18n (DE/EN)**: `useTranslation()` + Woerterbuecher (`src/i18n/translations.ts`),

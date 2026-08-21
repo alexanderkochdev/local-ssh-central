@@ -1,6 +1,6 @@
 {
   "name": "sdk-plugin",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Beispiel-Plugin, entwickelt mit dem SSH Central Plugin SDK (TypeScript)",
   "scripts": {
     "build": "ssh-central-plugin build-pack"

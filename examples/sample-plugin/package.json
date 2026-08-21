@@ -1,6 +1,6 @@
 {
   "name": "sample-plugin",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Beispiel-Plugin fuer SSH Central - zeigt Hooks, Events, UI-Tab, IPC, Dialoge, Secrets und Storage",
   "main": "index.js",
   "sshCentral": {

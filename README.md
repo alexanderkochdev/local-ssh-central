@@ -13,7 +13,15 @@ Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht —
 | **Lizenz** | [GPL-3.0](LICENSE) (OSI Open Source, Copyleft) |
 | **Stack** | Electron · React · Material UI · TypeScript · pnpm + Turborepo |
 | **Plattformen** | Windows 10/11 · Linux (AppImage/deb) |
-| **Status** | Planung & Initialisierung — MVP in Entwicklung |
+| **Status** | **v1.0.0** — Open-Source-Release (GPL-3.0) |
+
+---
+
+## Download
+
+Lade die aktuelle Version von den [GitHub Releases](https://github.com/alexanderkochdev/local-ssh-central/releases) herunter
+(Windows-Installer `.exe`, Linux AppImage/deb). Alle Secrets bleiben lokal in deinem
+KeePass-kompatiblen Vault.
 
 ---
 
@@ -26,6 +34,8 @@ Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht —
 - **Sicherer Tresor (KeePass/KDBX)** — SSH-Keys und Benutzername/Passwort verschlüsselt in
   einer `.kdbx`-Datei, entsperrbar mit einem selbst gewählten Master-Passwort (Argon2 KDF).
   Kompatibel mit KeePassXC. Auto-Lock nach Inaktivität.
+- **Plugins** — ZIP-installierbare Plugins (UI, IPC, Secrets, Persistenz, Berechtigungen),
+  entwickelt mit dem [Plugin-SDK](docs/plugin-development.md) (`@ssh-central/plugin-sdk`).
 - **Performance** — Streaming über `MessageChannel`, virtualisierte Listen, native Module,
   ressourcenschonender Main-Process.
 
@@ -46,7 +56,9 @@ local-ssh-central/
 │   ├── sftp/             # SFTP-Transfer-Engine (Queue, Parallelität, Resume)
 │   ├── vault/            # KeePass/KDBX-Tresor (kdbxweb), AES+Argon2
 │   ├── ipc-contracts/    # Typisierte IPC-Verträge & geteilte Types
+│   ├── plugin-sdk/       # SDK für Plugins (typisierte API, definePlugin, CLI) — auf npm
 │   └── ui/               # Geteilte React-Komponenten & Theme
+├── examples/             # Beispiel-Plugins
 ├── docs/                 # MVP-Scope, Roadmap, Security-Design
 └── package.json          # pnpm + Turborepo Root
 ```

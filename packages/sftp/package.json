@@ -1,6 +1,6 @@
 {
   "name": "@ssh-central/sftp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "SFTP-Transfer-Engine mit Queue, Parallelitaet und Cancel fuer SSH Central",
   "license": "GPL-3.0-only",
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",

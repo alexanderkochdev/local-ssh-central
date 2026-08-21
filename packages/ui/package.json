@@ -1,6 +1,6 @@
 {
   "name": "@ssh-central/ui",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Geteilte React-Komponenten und Material-UI Theme fuer SSH Central",
   "license": "GPL-3.0-only",
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",
