@@ -12,6 +12,7 @@ import type { AppServices } from './ipc/types.js';
 import { createMainWindow } from './windows.js';
 import { registerAppProtocol, registerAppSchemePrivileges } from './protocol.js';
 import { SessionWindowManager } from './session-windows.js';
+import { PluginManager } from './plugin/plugin-manager.js';
 
 // MUSS vor app.whenReady() erfolgen (privilegierte Schema-Registrierung).
 registerAppSchemePrivileges();
@@ -27,6 +28,7 @@ process.on('unhandledRejection', (reason) => {
 const services = {} as AppServices;
 let mainWindow: BrowserWindow | null = null;
 let sessionWindows: SessionWindowManager | null = null;
+let plugins: PluginManager | null = null;
 
 // ------------------------------------------------------------------ Auto-Lock
 let autoLockMs = 15 * 60 * 1000;
@@ -53,12 +55,13 @@ function scheduleAutoLock(): void {
   }, autoLockMs);
 }
 
-/** Sendet ein Ereignis an das Hauptfenster UND alle offenen Session-Fenster. */
+/** Sendet ein Ereignis an das Hauptfenster, Session-Fenster UND alle Plugin-Listener. */
 function emit(channel: string, payload: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, payload);
   }
   sessionWindows?.broadcast(channel, payload);
+  plugins?.emit(channel, payload);
 }
 
 app.whenReady().then(async () => {
@@ -73,7 +76,13 @@ app.whenReady().then(async () => {
   const hosts = new HostStore(join(userData, 'hosts.json'));
   await hosts.load();
 
-  // Loest Verbindungsparameter aus Host-Metadaten + Vault auf (nur Main-Process).
+  // Plugins laden (lokal installierte ZIPs in userData/plugins).
+  plugins = new PluginManager(join(userData, 'plugins'));
+  plugins.setHostsProvider(() => hosts.list());
+  await plugins.loadAll();
+
+  // Loest Verbindungsparameter aus Host-Metadaten + Vault auf (nur Main-Process),
+  // durchlaeuft dabei die Plugin-Middleware-Kette (Erweitern/Ueberschreiben).
   const getConfig = async (hostId: string) => {
     const host = hosts.getById(hostId);
     if (!host) {
@@ -82,7 +91,9 @@ app.whenReady().then(async () => {
     if (vault.underlying.state !== 'unlocked') {
       throw new Error('Der Tresor ist gesperrt. Bitte zuerst entsperren.');
     }
-    return resolveConnectionConfig(host, vault.underlying);
+    return plugins!.resolveConnectionConfig(host, () =>
+      Promise.resolve(resolveConnectionConfig(host, vault.underlying)),
+    );
   };
 
   // TOFU: Host-Key-Fingerprint nach dem ersten erfolgreichen Connect am Host speichern.
@@ -108,6 +119,7 @@ app.whenReady().then(async () => {
     emit,
     () => emit(IpcChannels.vaultEvent, { type: 'locked' }),
     () => scheduleAutoLock(),
+    plugins,
   );
 
   // Neue Terminal-/SFTP-Fenster oeffnen (unbegrenzt parallel).

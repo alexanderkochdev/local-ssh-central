@@ -13,6 +13,7 @@ export const common: Record<string, string> = {
   'action.add': 'Add',
   'action.close': 'Close',
   'action.loading': 'Loading…',
+  'action.refresh': 'Refresh',
   'sort.by': 'Sort by',
   'sort.ascending': 'Ascending',
   'sort.descending': 'Descending',

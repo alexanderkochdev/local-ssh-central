@@ -4,4 +4,5 @@ export * from './hosts.js';
 export * from './ssh.js';
 export * from './sftp.js';
 export * from './fs.js';
+export * from './plugins.js';
 export * from './api.js';

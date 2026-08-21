@@ -4,6 +4,7 @@ import { vault } from './en/vault.js';
 import { settings } from './en/settings.js';
 import { sftp } from './en/sftp.js';
 import { terminal } from './en/terminal.js';
+import { plugins } from './en/plugins.js';
 
 /** Zusammengefuehrtes englisches Woerterbuch. */
 export const en: Record<string, string> = {
@@ -13,4 +14,5 @@ export const en: Record<string, string> = {
   ...settings,
   ...sftp,
   ...terminal,
+  ...plugins,
 };

@@ -1,0 +1,9 @@
+{
+  "name": "sample-plugin",
+  "version": "0.1.0",
+  "description": "Beispiel-Plugin fuer SSH Central - zeigt Hooks, Events und Tab-Erweiterung",
+  "main": "index.js",
+  "sshCentral": {
+    "tabs": [{ "id": "status", "label": "Plugin-Status" }]
+  }
+}

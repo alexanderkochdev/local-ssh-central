@@ -69,6 +69,12 @@ export const IpcChannels = {
 
   // Streaming - MessageChannel-Kanaele werden pro Session separat uebergeben
   streamSetup: 'stream:setup',
+
+  // Plugins (Installation aus ZIP, Verwaltung, Tab-Daten)
+  pluginsList: 'plugins:list',
+  pluginsInstall: 'plugins:install',
+  pluginsUninstall: 'plugins:uninstall',
+  pluginsGetTab: 'plugins:getTab',
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

@@ -37,6 +37,11 @@ import type {
   MkdirLocalRequest,
   OpenerInfo,
 } from './fs.js';
+import type {
+  PluginInfo,
+  PluginTabData,
+  PluginTabRequest,
+} from './plugins.js';
 
 /**
  * Die vollstaendige, typisierte API, die der Preload via contextBridge als `window.api`
@@ -115,6 +120,17 @@ export interface SshCentralApi {
   windows: {
     openTerminal(hostId: string): void;
     openSftp(hostId: string): void;
+  };
+  /**
+   * Plugin-Verwaltung: lokal installierte Plugins (aus ZIP) auflisten, installieren und
+   * deinstallieren. `install()` oeffnet einen nativen Datei-Dialog im Main-Process.
+   * `getTab` liefert den Inhalt eines von einem Plugin registrierten Tabs.
+   */
+  plugins: {
+    list(): Promise<PluginInfo[]>;
+    install(): Promise<PluginInfo[]>;
+    uninstall(name: string): Promise<PluginInfo[]>;
+    getTab(request: PluginTabRequest): Promise<PluginTabData>;
   };
   /**
    * Ereignis-Abo. Fuer Terminal-/SFTP-Stroeme wird stattdessen ein MessageChannel

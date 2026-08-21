@@ -74,6 +74,12 @@ const api: SshCentralApi = {
     setAutoLock: (minutes) => ipcRenderer.send(IpcChannels.settingsAutoLock, minutes),
     setSftpConcurrency: (concurrency) => ipcRenderer.send(IpcChannels.settingsSftpConcurrency, concurrency),
   },
+  plugins: {
+    list: () => ipcRenderer.invoke(IpcChannels.pluginsList),
+    install: () => ipcRenderer.invoke(IpcChannels.pluginsInstall),
+    uninstall: (name) => ipcRenderer.invoke(IpcChannels.pluginsUninstall, name),
+    getTab: (request) => ipcRenderer.invoke(IpcChannels.pluginsGetTab, request),
+  },
   onEvent: (channel, handler) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => handler(payload);
     ipcRenderer.on(channel, listener);

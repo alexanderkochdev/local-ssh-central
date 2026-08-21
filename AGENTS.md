@@ -46,6 +46,16 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 5. **Performance ist ein Muss**: virtualisierte Listen (`react-virtuoso`), xterm WebGL-Renderer,
    konfigurierbare SFTP-Parallelität, kein unnötiges Re-Rendering.
 
+## Plugin-System
+
+- Private Plugins (ZIP-Installation) erweitern/ueberschreiben Main-Logik. Siehe `docs/plugins.md`.
+- Kern: `apps/desktop/src/main/plugin/` (`plugin-manager.ts` laedt Plugins aus `userData/plugins`,
+  verdrahtet Hooks; `unzip.ts` entpackt ZIPs mit Zip-Slip-Schutz).
+- API (`register(api)`): `hooks.resolveConnectionConfig`, `events.on`, `tabs.register`,
+  `services.hosts.list`, `log`. Plugins sind **CommonJS**-Module.
+- Renderer: `store/plugins-store.ts`, `features/plugins/PluginsDialog.tsx` + `PluginPanel.tsx`,
+  Tab-Erweiterung in `Workspace.tsx`. IPC-Kanaele: `plugins:*` in `ipc-contracts`.
+
 ## Git-Workflow
 
 - **Standard-Branch**: `develop` (Integrationsbranch). Niemals direkt auf `main`.
