@@ -22,7 +22,8 @@ export const hosts: Record<string, string> = {
   'hosts.comment': 'Comment',
   'hosts.importPrivateKey': 'Import private key (OpenSSH/PEM)',
   'hosts.keyPassphrase': 'Key passphrase (if encrypted)',
-  'hosts.tags': 'Tags (comma separated)',
+  'hosts.tags': 'Tags',
+  'hosts.tagsPlaceholder': 'Add a tag and press Enter',
   'hosts.notes': 'Notes',
   'hosts.missingFields': 'Name, address and username are required.',
   'hosts.keyRequired': 'Please generate, import or select an SSH key.',
@@ -32,4 +33,8 @@ export const hosts: Record<string, string> = {
   'hosts.openSftp': 'Open SFTP window',
   'hosts.selectVaultPassword': 'Select vault password',
   'hosts.selectVaultKey': 'Select vault key',
+  'hosts.tagsShort': 'Tags',
+  'hosts.notesShort': 'Notes',
+  'hosts.createdAt': 'Created',
+  'hosts.updatedAt': 'Updated',
 };

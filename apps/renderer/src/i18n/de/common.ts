@@ -13,4 +13,11 @@ export const common: Record<string, string> = {
   'action.add': 'Hinzufügen',
   'action.close': 'Schließen',
   'action.loading': 'Laden…',
+  'sort.by': 'Sortieren nach',
+  'sort.ascending': 'Aufsteigend',
+  'sort.descending': 'Absteigend',
+  'filter.by': 'Filtern nach',
+  'filter.field': 'Feld',
+  'filter.value': 'Wert',
+  'filter.clear': 'Filter zurücksetzen',
 };

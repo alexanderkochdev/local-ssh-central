@@ -28,4 +28,6 @@ export const vault: Record<string, string> = {
   'vault.masterPassword': 'Master-Passwort',
   'vault.confirmPassword': 'Passwort bestätigen',
   'vault.passwordMismatch': 'Passwörter stimmen nicht überein',
+  'vault.keyType': 'Schlüsseltyp',
+  'vault.fingerprint': 'Fingerprint',
 };

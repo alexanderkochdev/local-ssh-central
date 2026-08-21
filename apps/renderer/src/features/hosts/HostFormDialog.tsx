@@ -6,6 +6,8 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
+import Autocomplete from '@mui/material/Autocomplete';
+import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
@@ -42,7 +44,7 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
   const [port, setPort] = useState('22');
   const [username, setUsername] = useState('');
   const [authMethod, setAuthMethod] = useState<AuthMethod>('password');
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [entries, setEntries] = useState<VaultEntrySummary[]>([]);
   const [passwordChoice, setPasswordChoice] = useState<string>('');
@@ -76,7 +78,7 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
     setPort(String(host?.port ?? 22));
     setUsername(host?.username ?? '');
     setAuthMethod(host?.authMethod ?? 'password');
-    setTags(host?.tags?.join(', ') ?? '');
+    setTags(host?.tags ?? []);
     setNotes(host?.notes ?? '');
     // Referenzen aus dem Vault vorbelegen.
     setPasswordChoice(host?.secrets?.passwordRef ?? NEW_PASSWORD);
@@ -161,10 +163,7 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
         port: Number(port) || 22,
         username: username.trim(),
         authMethod,
-        tags: tags
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter(Boolean),
+        tags,
         notes: notes.trim() || undefined,
       },
       secrets,
@@ -284,7 +283,33 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
             </Box>
           )}
 
-          <TextField label={t('hosts.tags')} value={tags} onChange={(e) => setTags(e.target.value)} fullWidth />
+          <Autocomplete<string, true, false, true>
+            multiple
+            freeSolo
+            options={[]}
+            value={tags}
+            onChange={(_, newValue) => setTags(newValue)}
+            renderValue={(value, getItemProps) =>
+              value.map((option, index) => {
+                const itemProps = getItemProps({ index });
+                return (
+                  <Chip
+                    key={option}
+                    label={option}
+                    size="small"
+                    variant="outlined"
+                    className={itemProps.className}
+                    disabled={itemProps.disabled}
+                    tabIndex={itemProps.tabIndex}
+                    onDelete={itemProps.onDelete}
+                  />
+                );
+              })
+            }
+            renderInput={(params) => (
+              <TextField {...params} label={t('hosts.tags')} placeholder={t('hosts.tagsPlaceholder')} />
+            )}
+          />
           <TextField label={t('hosts.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} fullWidth />
         </DialogContent>
         <DialogActions>

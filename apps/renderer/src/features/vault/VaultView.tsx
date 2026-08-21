@@ -19,11 +19,30 @@ import { EmptyState } from '@ssh-central/ui';
 import { Virtuoso } from 'react-virtuoso';
 import type { VaultEntrySummary } from '@ssh-central/ipc-contracts';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { SortControl, type SortOption, type SortState } from '../../components/sorting/SortControl.js';
+import { useSortedList } from '../../components/sorting/useSortedList.js';
+import { FilterControl, type FilterState } from '../../components/filtering/FilterControl.js';
+import { useFilteredList } from '../../components/filtering/useFilteredList.js';
 import { PasswordEntryDialog } from './PasswordEntryDialog.js';
 import { KeyGenerateDialog } from './KeyGenerateDialog.js';
 import { KeyImportDialog } from './KeyImportDialog.js';
 
 type TresorTab = 'passwords' | 'keys';
+
+type PasswordSortKey = 'title' | 'userName';
+type KeySortKey = 'title' | 'userName' | 'keyType' | 'fingerprint';
+
+const PASSWORD_SORT_ACCESSORS: Record<PasswordSortKey, (entry: VaultEntrySummary) => unknown> = {
+  title: (e) => e.title ?? '',
+  userName: (e) => e.userName ?? '',
+};
+
+const KEY_SORT_ACCESSORS: Record<KeySortKey, (entry: VaultEntrySummary) => unknown> = {
+  title: (e) => e.title ?? '',
+  userName: (e) => e.userName ?? '',
+  keyType: (e) => e.keyType ?? '',
+  fingerprint: (e) => e.fingerprint ?? '',
+};
 
 /**
  * Tresor-Ansicht: verwaltet Username:Passwort-Eintraege UND den SSH-Keychain
@@ -38,6 +57,10 @@ export function VaultView() {
   const [editingEntry, setEditingEntry] = useState<VaultEntrySummary | null>(null);
   const [genOpen, setGenOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [passwordSort, setPasswordSort] = useState<SortState<PasswordSortKey> | null>(null);
+  const [keySort, setKeySort] = useState<SortState<KeySortKey> | null>(null);
+  const [passwordFilter, setPasswordFilter] = useState<FilterState<PasswordSortKey> | null>(null);
+  const [keyFilter, setKeyFilter] = useState<FilterState<KeySortKey> | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -59,11 +82,38 @@ export function VaultView() {
 
   const passwords = entries.filter((e) => !e.hasKeyData);
   const keys = entries.filter((e) => e.hasKeyData);
+  const filteredPasswords = useFilteredList(passwords, passwordFilter, PASSWORD_SORT_ACCESSORS);
+  const filteredKeys = useFilteredList(keys, keyFilter, KEY_SORT_ACCESSORS);
+  const sortedPasswords = useSortedList(filteredPasswords, passwordSort, PASSWORD_SORT_ACCESSORS);
+  const sortedKeys = useSortedList(filteredKeys, keySort, KEY_SORT_ACCESSORS);
+
+  const passwordSortOptions: SortOption<PasswordSortKey>[] = [
+    { key: 'title', label: t('vault.entryTitle') },
+    { key: 'userName', label: t('vault.username') },
+  ];
+
+  const keySortOptions: SortOption<KeySortKey>[] = [
+    { key: 'title', label: t('vault.entryTitle') },
+    { key: 'keyType', label: t('vault.keyType') },
+    { key: 'fingerprint', label: t('vault.fingerprint') },
+    { key: 'userName', label: t('vault.username') },
+  ];
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Toolbar variant="dense" sx={{ gap: 1 }}>
         <Box sx={{ flexGrow: 1 }} />
+        {tab === 'passwords' ? (
+          <>
+            <FilterControl options={passwordSortOptions} filter={passwordFilter} onChange={setPasswordFilter} />
+            <SortControl options={passwordSortOptions} sort={passwordSort} onChange={setPasswordSort} />
+          </>
+        ) : (
+          <>
+            <FilterControl options={keySortOptions} filter={keyFilter} onChange={setKeyFilter} />
+            <SortControl options={keySortOptions} sort={keySort} onChange={setKeySort} />
+          </>
+        )}
         {tab === 'passwords' ? (
           <Button startIcon={<AddIcon />} variant="contained" size="small" onClick={() => { setEditingEntry(null); setPwOpen(true); }}>
             {t('vault.addPassword')}
@@ -95,7 +145,7 @@ export function VaultView() {
         ) : (
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <Virtuoso
-              data={passwords}
+              data={sortedPasswords}
               itemContent={(_, entry) => (
                 <List dense>
                   <ListItem
@@ -125,7 +175,7 @@ export function VaultView() {
       ) : (
         <Box sx={{ flex: 1, minHeight: 0 }}>
           <Virtuoso
-            data={keys}
+            data={sortedKeys}
             itemContent={(_, entry) => (
               <List dense>
                 <ListItem
