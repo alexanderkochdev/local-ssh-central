@@ -53,9 +53,10 @@ jobs:
       - name: Build
         run: pnpm build
 
-  # Package is only triggered manually or on release branches/tags to keep CI fast.
+  # Paketiert bei JEDEM Push (develop/main) und laedt die Installer als Artifacts hoch.
+  # (Bei Pull Requests nur Checks, um schwere Packaging-Runs zu vermeiden.)
   package:
-    if: startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
     needs: build
     strategy:
       fail-fast: false
