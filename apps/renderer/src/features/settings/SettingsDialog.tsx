@@ -26,10 +26,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const settings = useSettingsStore((s) => s.settings);
   const set = useSettingsStore((s) => s.set);
   const [openers, setOpeners] = useState<OpenerInfo[]>([]);
+  const [openersLoaded, setOpenersLoaded] = useState(false);
 
   useEffect(() => {
     if (open) {
-      void window.api.fs.listOpeners().then(setOpeners);
+      setOpenersLoaded(false);
+      void window.api.fs.listOpeners().then((list) => {
+        setOpeners(list);
+        setOpenersLoaded(true);
+      });
     }
   }, [open]);
 
@@ -103,15 +108,23 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
         <Box>
           <Typography variant="subtitle2">{t('settings.defaultOpener')}</Typography>
-          <TextField select value={settings.defaultOpener} onChange={(e) => set({ defaultOpener: e.target.value })} fullWidth size="small">
-            <MenuItem value="default">{t('sftp.systemDefault')}</MenuItem>
-            <MenuItem value="__ask__">{t('settings.alwaysAsk')}</MenuItem>
-            {openers.map((o) => (
-              <MenuItem key={o.id} value={o.id}>
-                {o.name}
-              </MenuItem>
-            ))}
-          </TextField>
+          {/* Select erst rendern, wenn die Opener-Liste geladen ist - sonst wuerde der
+              gespeicherte Wert (z.B. 'vscode') vor dem Laden als out-of-range gemeldet. */}
+          {!openersLoaded ? (
+            <TextField select value="" disabled fullWidth size="small">
+              <MenuItem value="">…</MenuItem>
+            </TextField>
+          ) : (
+            <TextField select value={settings.defaultOpener} onChange={(e) => set({ defaultOpener: e.target.value })} fullWidth size="small">
+              <MenuItem value="default">{t('sftp.systemDefault')}</MenuItem>
+              <MenuItem value="__ask__">{t('settings.alwaysAsk')}</MenuItem>
+              {openers.map((o) => (
+                <MenuItem key={o.id} value={o.id}>
+                  {o.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
         </Box>
 
         <FormControlLabel
