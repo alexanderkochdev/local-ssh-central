@@ -191,8 +191,41 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@26.2.0)(vite@7.3.6(@types/node@26.2.0)(jiti@2.7.0))
 
+  examples/sample-plugin: {}
+
+  examples/sdk-plugin:
+    devDependencies:
+      '@ssh-central/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
   packages/ipc-contracts:
     devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/plugin-sdk:
+    dependencies:
+      '@ssh-central/ipc-contracts':
+        specifier: workspace:*
+        version: link:../ipc-contracts
+      adm-zip:
+        specifier: ^0.5.16
+        version: 0.5.18
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+    devDependencies:
+      '@types/adm-zip':
+        specifier: ^0.5.5
+        version: 0.5.8
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3

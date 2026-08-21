@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "examples/*"
 
 # Transitive Abhaengigkeiten auf gepatchte Versionen erzwingen (Security).
 # kdbxweb pinnt @xmldom/xmldom 0.7.x (5 High-Findings); 0.8.13+ ist patched.

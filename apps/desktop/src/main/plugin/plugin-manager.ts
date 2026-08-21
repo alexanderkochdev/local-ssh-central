@@ -343,7 +343,10 @@ export class PluginManager {
     const mainPath = join(dir, manifest.main ?? 'index.js');
     if (!(await this.exists(mainPath))) return;
     try {
-      const mod = requireShim(mainPath) as PluginModule;
+      // Interop: CommonJS (`module.exports = { register }`) UND ESM/esbuild-Interop
+      // (`module.exports = { default: { register } }`) unterstuetzen.
+      const raw = requireShim(mainPath) as PluginModule & { default?: PluginModule };
+      const mod = typeof raw?.register === 'function' ? raw : (raw?.default ?? raw);
       if (typeof mod?.register !== 'function') return;
       const hasUi = Boolean(manifest.sshCentral?.ui?.entry);
       const uiEntry = manifest.sshCentral?.ui?.entry;

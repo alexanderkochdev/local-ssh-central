@@ -8,9 +8,11 @@ dist/
 out/
 build/
 release/
+release-*/
 webview-dist/
 *.tsbuildinfo
 coverage/
+*.zip
 
 # --- Electron ---
 apps/desktop/dist/

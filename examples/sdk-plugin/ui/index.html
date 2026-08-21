@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SDK Plugin</title>
+  <style>
+    body { font-family: sans-serif; padding: 16px; color: #e2e8f0; background: #0f1720; }
+    pre { background: #1e293b; padding: 10px; border-radius: 6px; }
+    button { padding: 8px 12px; margin-right: 8px; margin-top: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>SDK Plugin</h2>
+  <pre id="out">Laden...</pre>
+  <button onclick="hello()">Hallo</button>
+  <button onclick="inc()">+1</button>
+  <script>
+    function out(v) { document.getElementById('out').textContent = v; }
+    async function hello() { out(await window.sshCentral.invoke('hello', {})); }
+    async function inc() { window.sshCentral.send('increment', {}); await state(); }
+    async function state() { out(JSON.stringify(await window.sshCentral.invoke('state', {}), null, 2)); }
+    state();
+  </script>
+</body>
+</html>

@@ -244,6 +244,25 @@ describe('PluginManager', () => {
     expect(logs[1]!.level).toBe('warn');
   });
 
+  it('laedt Plugins mit ESM/esbuild-Interop (default-Wrapper)', async () => {
+    const pdir = join(pluginsDir, 'esmplugin');
+    await mkdir(pdir, { recursive: true });
+    await writeFile(
+      join(pdir, 'package.json'),
+      JSON.stringify({ name: 'esmplugin', version: '1.0.0', main: 'index.js' }),
+    );
+    await writeFile(
+      join(pdir, 'index.js'),
+      `module.exports = { default: { register: function (api) { api.tabs.register({ id: 't', label: 'T' }, async () => ({ title: 'X', body: 'y' })); } } };`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    expect(mgr.list()).toHaveLength(1);
+    expect(mgr.list()[0]!.name).toBe('esmplugin');
+    expect(await mgr.getTab('esmplugin', 't')).toEqual({ title: 'X', body: 'y' });
+  });
+
   it('getTab liefert fuer UI-Plugins die volle plugin://-URL (rel. Pfad des Providers)', async () => {
     const pdir = join(pluginsDir, 'uiplugin');
     await mkdir(pdir, { recursive: true });
