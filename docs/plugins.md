@@ -1,5 +1,7 @@
 # Plugin-System (privat)
 
+> **Vollstaendige Anleitung zum Entwickeln eines Plugins (LLM-tauglich): `plugin-development.md`**
+
 SSH Central unterstuetzt private Plugins, die Main-Process-Logik **erweitern**, **ueberschreiben**
 oder **neu aufbauen** koennen (Credential-Aufloesung, Events, zusaetzliche Tabs). Plugins werden
 aus ZIP-Archiven installiert.

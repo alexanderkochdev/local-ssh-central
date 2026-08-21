@@ -48,7 +48,9 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 
 ## Plugin-System
 
-- Private Plugins (ZIP-Installation) erweitern/ueberschreiben Main-Logik. Siehe `docs/plugins.md`.
+- Private Plugins (ZIP-Installation) erweitern/ueberschreiben Main-Logik. Siehe
+  `docs/plugins.md` (Kurzfassung) und `docs/plugin-development.md` (vollstaendige,
+  LLM-taugliche Entwickler-Doku mit kompletter API-Referenz).
 - Kern: `apps/desktop/src/main/plugin/` (`plugin-manager.ts` laedt Plugins aus `userData/plugins`,
   verdrahtet Hooks; `unzip.ts` entpackt ZIPs mit Zip-Slip-Schutz).
 - API (`register(api)`): `hooks.resolveConnectionConfig`, `events.on`, `tabs.register`,
