@@ -16,6 +16,7 @@ coverage/
 apps/desktop/dist/
 apps/desktop/out/
 apps/desktop/release/
+apps/desktop/release-*/
 *.vsix
 
 # --- App runtime data (NEVER commit local vaults / secrets!) ---

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Tabs from '@mui/material/Tabs';
@@ -32,10 +32,17 @@ export function Workspace() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pluginsOpen, setPluginsOpen] = useState(false);
   const lock = useVaultStore((state) => state.lock);
-  const pluginTabs = usePluginsStore((s) =>
-    s.plugins.flatMap((p) => p.tabs.map((tab) => ({ key: `plugin:${p.name}:${tab.id}`, label: tab.label }))),
-  );
+  // WICHTIG: stabile Referenz selektieren und Tabs per useMemo ableiten - ein Selektor,
+  // der ein neues Array erzeugt, wuerde eine Endlos-Render-Schleife ausloesen.
+  const plugins = usePluginsStore((s) => s.plugins);
   const loadPlugins = usePluginsStore((s) => s.load);
+  const pluginTabs = useMemo(
+    () =>
+      plugins.flatMap((p) =>
+        p.tabs.map((tab) => ({ key: `plugin:${p.name}:${tab.id}`, label: tab.label })),
+      ),
+    [plugins],
+  );
 
   useEffect(() => {
     void loadPlugins();
