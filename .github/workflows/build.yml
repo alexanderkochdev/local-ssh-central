@@ -25,10 +25,10 @@ jobs:
         with:
           node-version: 24
 
+      # pnpm-Version kommt aus package.json ("packageManager": "pnpm@11.17.0") -
+      # keine explizite "version" angeben, sonst "Multiple versions of pnpm specified".
       - name: Enable pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -71,10 +71,10 @@ jobs:
         with:
           node-version: 24
 
+      # pnpm-Version kommt aus package.json ("packageManager": "pnpm@11.17.0") -
+      # keine explizite "version" angeben, sonst "Multiple versions of pnpm specified".
       - name: Enable pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
