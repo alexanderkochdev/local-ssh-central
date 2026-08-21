@@ -168,10 +168,10 @@ export class PluginManager {
     const entry = this.tabProviders.get(`${plugin}:${tabId}`);
     if (!entry) throw new Error(`Tab "${plugin}:${tabId}" nicht gefunden.`);
     const data = await entry.provider(tabId, { url: entry.url });
-    if (entry.url && !data.url) {
-      return { ...data, url: entry.url };
-    }
-    return data;
+    // UI-Plugins: IMMER die vollstaendige plugin://-URL verwenden. Der Provider darf
+    // nur einen relativen Pfad liefern (z.B. "ui/index.html") - ein relativer Wert wuerde
+    // sonst gegen die app://-Origin aufgeloest und mit "Bad request" scheitern.
+    return entry.url ? { ...data, url: entry.url } : data;
   }
 
   setTabFocus(plugin: string, tabId: string, type: 'opened' | 'closed' | 'focused' | 'blurred'): void {

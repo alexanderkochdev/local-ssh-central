@@ -243,4 +243,27 @@ describe('PluginManager', () => {
     expect(logs[0]!.message).toBe('hallo');
     expect(logs[1]!.level).toBe('warn');
   });
+
+  it('getTab liefert fuer UI-Plugins die volle plugin://-URL (rel. Pfad des Providers)', async () => {
+    const pdir = join(pluginsDir, 'uiplugin');
+    await mkdir(pdir, { recursive: true });
+    await writeFile(
+      join(pdir, 'package.json'),
+      JSON.stringify({
+        name: 'uiplugin',
+        version: '1.0.0',
+        main: 'index.js',
+        sshCentral: { ui: { entry: 'ui/index.html' } },
+      }),
+    );
+    await writeFile(
+      join(pdir, 'index.js'),
+      `module.exports = { register: function (api) { api.tabs.register({ id: 't', label: 'T' }, async () => ({ title: 'X', url: 'ui/index.html' })); } };`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const tab = await mgr.getTab('uiplugin', 't');
+    expect(tab.url).toBe('plugin://uiplugin/ui/index.html');
+  });
 });
