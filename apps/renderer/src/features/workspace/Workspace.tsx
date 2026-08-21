@@ -15,6 +15,7 @@ import { ChangePasswordDialog } from '../vault/ChangePasswordDialog.js';
 import { SettingsDialog } from '../settings/SettingsDialog.js';
 import { PluginsDialog } from '../plugins/PluginsDialog.js';
 import { PluginPanel } from '../plugins/PluginPanel.js';
+import { PluginDialogHost } from '../plugins/PluginDialogHost.js';
 import { useVaultStore } from '../../store/vault-store.js';
 import { usePluginsStore } from '../../store/plugins-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -118,6 +119,7 @@ export function Workspace() {
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
       <PluginsDialog open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
+      <PluginDialogHost />
     </Box>
   );
 }

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
-import { PluginManager } from '../src/main/plugin/plugin-manager.js';
+import { PluginManager, type PluginServices } from '../src/main/plugin/plugin-manager.js';
 import type { Host } from '@ssh-central/ipc-contracts';
 
 let dir: string;
@@ -35,6 +35,23 @@ function makeHost(overrides: Partial<Host> = {}): Host {
   };
 }
 
+function makeManager(dir: string, override?: Partial<PluginServices>): PluginManager {
+  const base: PluginServices = {
+    hosts: () => [],
+    openTerminal: async () => ({ sessionId: 's' }),
+    writeTerminal: async () => {},
+    resizeTerminal: async () => {},
+    closeTerminal: async () => {},
+    sftpTransfer: async () => ({ id: 't' }),
+    sftpCancel: async () => {},
+    openWindow: async () => ({ id: 'w' }),
+    closeWindow: async () => {},
+    dialog: async () => null,
+    emitToUi: () => {},
+  };
+  return new PluginManager(dir, { ...base, ...override });
+}
+
 async function installPlugin(name: string, registerBody: string): Promise<void> {
   const pdir = join(pluginsDir, name);
   await mkdir(pdir, { recursive: true });
@@ -48,7 +65,7 @@ async function installPlugin(name: string, registerBody: string): Promise<void> 
 describe('PluginManager', () => {
   it('laedt ein Plugin und registriert Tabs', async () => {
     await installPlugin('p1', `api.tabs.register({ id: 't', label: 'Tab' }, async () => ({ title: 'X', body: 'y' }));`);
-    const mgr = new PluginManager(pluginsDir);
+    const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
     expect(mgr.list()).toHaveLength(1);
@@ -59,7 +76,7 @@ describe('PluginManager', () => {
 
   it('laedt ein Plugin ohne Manifest nicht', async () => {
     await mkdir(join(pluginsDir, 'kein-plugin'), { recursive: true });
-    const mgr = new PluginManager(pluginsDir);
+    const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
     expect(mgr.list()).toHaveLength(0);
   });
@@ -69,7 +86,7 @@ describe('PluginManager', () => {
       'p2',
       `api.hooks.resolveConnectionConfig(async (host, next) => { const c = await next(); return { ...c, port: 2222 }; });`,
     );
-    const mgr = new PluginManager(pluginsDir);
+    const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
     const config = await mgr.resolveConnectionConfig(makeHost(), async () => ({
@@ -86,7 +103,7 @@ describe('PluginManager', () => {
       'p3',
       `api.hooks.resolveConnectionConfig(async () => ({ host: 'override', port: 1, username: 'o' }));`,
     );
-    const mgr = new PluginManager(pluginsDir);
+    const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
     const config = await mgr.resolveConnectionConfig(makeHost(), async () => {
@@ -97,7 +114,7 @@ describe('PluginManager', () => {
 
   it('events.on empfängt emit()', async () => {
     await installPlugin('p4', `api.events.on((c) => { globalThis.__pluginLastChannel = c; });`);
-    const mgr = new PluginManager(pluginsDir);
+    const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
     mgr.emit('ssh:event', { type: 'sessionStatus' });
@@ -111,7 +128,7 @@ describe('PluginManager', () => {
     const zipPath = join(dir, 'plugin.zip');
     zip.writeZip(zipPath);
 
-    const mgr = new PluginManager(pluginsDir);
+    const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
     expect(mgr.list()).toHaveLength(0);
 
@@ -123,12 +140,107 @@ describe('PluginManager', () => {
 
   it('uninstall entfernt ein Plugin', async () => {
     await installPlugin('p1', ``);
-    const mgr = new PluginManager(pluginsDir);
+    const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
     expect(mgr.list()).toHaveLength(1);
 
     await mgr.uninstall('p1');
     await mgr.loadAll();
     expect(mgr.list()).toHaveLength(0);
+  });
+
+  it('ipc.handle registriert einen Request/Response-Kanal', async () => {
+    await installPlugin('p5', `api.ipc.handle('ping', async () => 'pong');`);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const res = await mgr.invokeIpc({ plugin: 'p5', channel: 'ping', payload: {} });
+    expect(res.ok).toBe(true);
+    expect(res.value).toBe('pong');
+  });
+
+  it('liefert eine Fehlerantwort fuer einen unbekannten Kanal', async () => {
+    await installPlugin('p6', ``);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const res = await mgr.invokeIpc({ plugin: 'p6', channel: 'nope', payload: {} });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('nicht registriert');
+  });
+
+  it('storage speichert und liest Werte dauerhaft', async () => {
+    await installPlugin('p7', ``);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    await mgr.storageSet('p7', 'note', 'hallo');
+    expect(await mgr.storageGet('p7', 'note')).toBe('hallo');
+    await mgr.storageDelete('p7', 'note');
+    expect(await mgr.storageGet('p7', 'note')).toBeUndefined();
+  });
+
+  it('Berechtigungen lassen sich erteilen und widerrufen', async () => {
+    await installPlugin('p8', ``);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    expect(mgr.permissionsFor('p8')).toEqual([]);
+    await mgr.grantPermission('p8', 'terminal');
+    expect(mgr.permissionsFor('p8')).toContain('terminal');
+    await mgr.revokePermission('p8', 'terminal');
+    expect(mgr.permissionsFor('p8')).not.toContain('terminal');
+  });
+
+  it('Host-Faehigkeit ohne Permission wird abgelehnt', async () => {
+    await installPlugin(
+      'p9',
+      `api.ipc.handle('go', async () => { await api.terminal.open('h1'); return 'ok'; });`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const denied = await mgr.invokeIpc({ plugin: 'p9', channel: 'go', payload: {} });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toContain('Berechtigung');
+
+    await mgr.grantPermission('p9', 'terminal');
+    const granted = await mgr.invokeIpc({ plugin: 'p9', channel: 'go', payload: {} });
+    expect(granted.ok).toBe(true);
+    expect(granted.value).toBe('ok');
+  });
+
+  it('secrets werfen ohne System-Keystore (Test-Umgebung)', async () => {
+    await installPlugin('p10', ``);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    await expect(mgr.secretSet('p10', 'k', 'v')).rejects.toThrow(/Keystore|verfuegbar/);
+  });
+
+  it('Berechtigungs-Prompt erteilt beim ersten Zugriff (Zustimmung)', async () => {
+    await installPlugin(
+      'p11',
+      `api.ipc.handle('go', async () => { await api.terminal.open('h1'); return 'ok'; });`,
+    );
+    const mgr = makeManager(pluginsDir, { dialog: async () => true });
+    await mgr.loadAll();
+
+    const res = await mgr.invokeIpc({ plugin: 'p11', channel: 'go', payload: {} });
+    expect(res.ok).toBe(true);
+    expect(res.value).toBe('ok');
+    expect(mgr.permissionsFor('p11')).toContain('terminal');
+  });
+
+  it('api.log erfasst Log-Eintraege (US-9.2)', async () => {
+    await installPlugin('p12', `api.log.info('hallo'); api.log.warn('achtung');`);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const logs = mgr.getLogs('p12');
+    expect(logs).toHaveLength(2);
+    expect(logs[0]!.level).toBe('info');
+    expect(logs[0]!.message).toBe('hallo');
+    expect(logs[1]!.level).toBe('warn');
   });
 });

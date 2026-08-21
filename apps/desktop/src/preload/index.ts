@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IpcChannels, type SshCentralApi } from '@ssh-central/ipc-contracts';
+import { IpcChannels, type PluginIpcPush, type SshCentralApi } from '@ssh-central/ipc-contracts';
 
 /**
  * Exponiert die typisierte `window.api` via contextBridge. Der Renderer erhaelt ausschliesslich
@@ -78,7 +78,23 @@ const api: SshCentralApi = {
     list: () => ipcRenderer.invoke(IpcChannels.pluginsList),
     install: () => ipcRenderer.invoke(IpcChannels.pluginsInstall),
     uninstall: (name) => ipcRenderer.invoke(IpcChannels.pluginsUninstall, name),
+    setEnabled: (request) => ipcRenderer.invoke(IpcChannels.pluginsSetEnabled, request),
     getTab: (request) => ipcRenderer.invoke(IpcChannels.pluginsGetTab, request),
+    invoke: (request) => ipcRenderer.invoke(IpcChannels.pluginsIpcInvoke, request),
+    onIpc: (handler) => {
+      const listener = (_event: Electron.IpcRendererEvent, push: PluginIpcPush) => handler(push);
+      ipcRenderer.on(IpcChannels.pluginsIpcEvent, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.pluginsIpcEvent, listener);
+    },
+    dialog: (request) => ipcRenderer.invoke(IpcChannels.pluginsDialog, request),
+    dialogResponse: (requestId, value) =>
+      ipcRenderer.send(IpcChannels.pluginsDialogResponse, { requestId, value }),
+    setTabFocus: (request) => ipcRenderer.send(IpcChannels.pluginsTabFocus, request),
+    permissionsList: () => ipcRenderer.invoke(IpcChannels.pluginsPermissionsList),
+    grantPermission: (request) => ipcRenderer.invoke(IpcChannels.pluginsPermissionGrant, request),
+    revokePermission: (request) => ipcRenderer.invoke(IpcChannels.pluginsPermissionRevoke, request),
+    storageClear: (plugin) => ipcRenderer.invoke(IpcChannels.pluginsStorageClear, plugin),
+    getLogs: (plugin) => ipcRenderer.invoke(IpcChannels.pluginsLogs, plugin),
   },
   onEvent: (channel, handler) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => handler(payload);

@@ -75,6 +75,44 @@ export const IpcChannels = {
   pluginsInstall: 'plugins:install',
   pluginsUninstall: 'plugins:uninstall',
   pluginsGetTab: 'plugins:getTab',
+  pluginsSetEnabled: 'plugins:setEnabled',
+  pluginsTabFocus: 'plugins:tabFocus',
+
+  // Plugin IPC-Bridge (UI <-> Plugin-Modul)
+  pluginsIpcInvoke: 'plugins:ipc:invoke',
+  pluginsIpcEvent: 'plugins:ipc:event',
+
+  // Plugin Dialoge (Main -> Renderer anzeigen, Renderer -> Main antworten)
+  pluginsUiDialog: 'plugins:ui:dialog',
+  pluginsDialog: 'plugins:dialog',
+  pluginsDialogResponse: 'plugins:dialog:response',
+
+  // Plugin Secrets (verschluesselt pro Plugin)
+  pluginsSecretSet: 'plugins:secret:set',
+  pluginsSecretGet: 'plugins:secret:get',
+  pluginsSecretDelete: 'plugins:secret:delete',
+  pluginsSecretList: 'plugins:secret:list',
+
+  // Plugin Persistenz
+  pluginsStorageSet: 'plugins:storage:set',
+  pluginsStorageGet: 'plugins:storage:get',
+  pluginsStorageDelete: 'plugins:storage:delete',
+  pluginsStorageClear: 'plugins:storage:clear',
+
+  // Plugin Berechtigungen
+  pluginsPermissionsList: 'plugins:permissions:list',
+  pluginsPermissionGrant: 'plugins:permissions:grant',
+  pluginsPermissionRevoke: 'plugins:permissions:revoke',
+  pluginsLogs: 'plugins:logs',
+
+  // Plugin Host-Faehigkeiten (P3)
+  pluginsTerminalOpen: 'plugins:terminal:open',
+  pluginsTerminalWrite: 'plugins:terminal:write',
+  pluginsTerminalClose: 'plugins:terminal:close',
+  pluginsSftpTransfer: 'plugins:sftp:transfer',
+  pluginsSftpCancel: 'plugins:sftp:cancel',
+  pluginsWindowOpen: 'plugins:window:open',
+  pluginsWindowClose: 'plugins:window:close',
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

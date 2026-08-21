@@ -14,6 +14,7 @@ export const common: Record<string, string> = {
   'action.close': 'Close',
   'action.loading': 'Loading…',
   'action.refresh': 'Refresh',
+  'action.ok': 'OK',
   'sort.by': 'Sort by',
   'sort.ascending': 'Ascending',
   'sort.descending': 'Descending',

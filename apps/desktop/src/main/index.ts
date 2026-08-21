@@ -12,10 +12,13 @@ import type { AppServices } from './ipc/types.js';
 import { createMainWindow } from './windows.js';
 import { registerAppProtocol, registerAppSchemePrivileges } from './protocol.js';
 import { SessionWindowManager } from './session-windows.js';
-import { PluginManager } from './plugin/plugin-manager.js';
+import { PluginManager, type PluginServices } from './plugin/plugin-manager.js';
+import { registerPluginSchemePrivileges, registerPluginProtocol } from './plugin/plugin-protocol.js';
+import { createPluginDialogBroker } from './ipc/plugins.ipc.js';
 
 // MUSS vor app.whenReady() erfolgen (privilegierte Schema-Registrierung).
 registerAppSchemePrivileges();
+registerPluginSchemePrivileges();
 log.initialize();
 
 // Unbehandelte Fehler im Main-Process festhalten (elektron-log).
@@ -76,10 +79,8 @@ app.whenReady().then(async () => {
   const hosts = new HostStore(join(userData, 'hosts.json'));
   await hosts.load();
 
-  // Plugins laden (lokal installierte ZIPs in userData/plugins).
-  plugins = new PluginManager(join(userData, 'plugins'));
-  plugins.setHostsProvider(() => hosts.list());
-  await plugins.loadAll();
+  // Plugin-Protocol registrieren (serviert plugin://-UI-Dateien).
+  registerPluginProtocol(join(userData, 'plugins'));
 
   // Loest Verbindungsparameter aus Host-Metadaten + Vault auf (nur Main-Process),
   // durchlaeuft dabei die Plugin-Middleware-Kette (Erweitern/Ueberschreiben).
@@ -114,12 +115,43 @@ app.whenReady().then(async () => {
   );
   sessionWindows = new SessionWindowManager(services);
 
+  // Dialog-Broker: Plugin-Dialoge -> Renderer anzeigen, Antwort zurueck.
+  const pluginBroker = createPluginDialogBroker(emit);
+
+  // PluginManager mit App-Services verdrahten (Host-Faehigkeiten + Bridge).
+  const pluginServices: PluginServices = {
+    hosts: () => hosts.list(),
+    openTerminal: async (hostId, command) => {
+      const session = await services.ssh.connect(hostId);
+      return { sessionId: session.id };
+    },
+    writeTerminal: async (sessionId, data) => services.ssh.write(sessionId, data),
+    resizeTerminal: async (sessionId, cols, rows) => services.ssh.resize(sessionId, cols, rows),
+    closeTerminal: async (sessionId) => services.ssh.disconnect(sessionId),
+    sftpTransfer: async (direction, hostId, localPath, remotePath) => {
+      const { handle } = await services.sftp.open(hostId);
+      const transfer =
+        direction === 'upload'
+          ? services.sftp.upload(handle, localPath, remotePath)
+          : services.sftp.download(handle, localPath, remotePath);
+      return { id: transfer.id };
+    },
+    sftpCancel: async (id) => services.sftp.cancel(id),
+    openWindow: async (url, opts) => ({ id: sessionWindows!.openPanel(url, opts) }),
+    closeWindow: async (id) => sessionWindows!.closePanel(id),
+    dialog: (request, plugin) => pluginBroker.show(request, plugin),
+    emitToUi: (push) => emit(IpcChannels.pluginsIpcEvent, push),
+  };
+  plugins = new PluginManager(join(userData, 'plugins'), pluginServices);
+  await plugins.loadAll();
+
   registerIpc(
     services,
     emit,
     () => emit(IpcChannels.vaultEvent, { type: 'locked' }),
     () => scheduleAutoLock(),
     plugins,
+    pluginBroker,
   );
 
   // Neue Terminal-/SFTP-Fenster oeffnen (unbegrenzt parallel).

@@ -38,7 +38,15 @@ import type {
   OpenerInfo,
 } from './fs.js';
 import type {
+  PluginDialogRequest,
+  PluginIpcInvokeRequest,
+  PluginIpcInvokeResponse,
+  PluginIpcPush,
   PluginInfo,
+  PluginLogEntry,
+  PluginPermission,
+  PluginPermissionRequest,
+  PluginSetEnabledRequest,
   PluginTabData,
   PluginTabRequest,
 } from './plugins.js';
@@ -122,15 +130,30 @@ export interface SshCentralApi {
     openSftp(hostId: string): void;
   };
   /**
-   * Plugin-Verwaltung: lokal installierte Plugins (aus ZIP) auflisten, installieren und
-   * deinstallieren. `install()` oeffnet einen nativen Datei-Dialog im Main-Process.
-   * `getTab` liefert den Inhalt eines von einem Plugin registrierten Tabs.
+   * Plugin-Verwaltung: lokal installierte Plugins (aus ZIP) auflisten, installieren,
+   * deinstallieren, aktivieren/deaktivieren. `install()` oeffnet einen nativen Datei-Dialog.
+   * `getTab` liefert Tab-Inhalt (Text oder UI-Seiten-URL). `invoke`/`onIpc` bilden die
+   * Bidirektionale Bridge zwischen Plugin-UI (iframe) und Plugin-Modul im Main-Process.
+   * `dialog` zeigt angefragte native Dialoge, `permissionsList`/`grant`/`revoke` verwalten
+   * die Faehigkeiten eines Plugins.
    */
   plugins: {
     list(): Promise<PluginInfo[]>;
     install(): Promise<PluginInfo[]>;
     uninstall(name: string): Promise<PluginInfo[]>;
+    setEnabled(request: PluginSetEnabledRequest): Promise<PluginInfo[]>;
     getTab(request: PluginTabRequest): Promise<PluginTabData>;
+    invoke(request: PluginIpcInvokeRequest): Promise<PluginIpcInvokeResponse>;
+    onIpc(handler: (push: PluginIpcPush) => void): () => void;
+    dialog(request: PluginDialogRequest): Promise<unknown>;
+    dialogResponse(requestId: string, value: string | boolean | null): void;
+    setTabFocus(request: { plugin: string; tabId: string; type: 'opened' | 'closed' | 'focused' | 'blurred' }): void;
+    permissionsList(): Promise<Record<string, PluginPermission[]>>;
+    grantPermission(request: PluginPermissionRequest): Promise<void>;
+    revokePermission(request: PluginPermissionRequest): Promise<void>;
+    storageClear(plugin: string): Promise<void>;
+    /** Plugin-Logs abrufen (optional gefiltert nach Plugin-ID). */
+    getLogs(plugin?: string): Promise<PluginLogEntry[]>;
   };
   /**
    * Ereignis-Abo. Fuer Terminal-/SFTP-Stroeme wird stattdessen ein MessageChannel

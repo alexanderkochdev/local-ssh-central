@@ -1,9 +1,11 @@
 {
   "name": "sample-plugin",
   "version": "0.1.0",
-  "description": "Beispiel-Plugin fuer SSH Central - zeigt Hooks, Events und Tab-Erweiterung",
+  "description": "Beispiel-Plugin fuer SSH Central - zeigt Hooks, Events, UI-Tab, IPC, Dialoge, Secrets und Storage",
   "main": "index.js",
   "sshCentral": {
-    "tabs": [{ "id": "status", "label": "Plugin-Status" }]
+    "tabs": [{ "id": "dashboard", "label": "Dashboard" }],
+    "ui": { "entry": "ui/index.html" },
+    "permissions": { "hosts": true }
   }
 }

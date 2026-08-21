@@ -58,6 +58,34 @@ export class SessionWindowManager {
     });
   }
 
+  /** Oeffnet ein generisches Plugin-Panel-Fenster (z.B. plugin://-UI) und liefert die ID. */
+  openPanel(url: string, opts?: { title?: string; width?: number; height?: number }): string {
+    const id = `panel:${Date.now()}`;
+    const win = new BrowserWindow({
+      width: opts?.width ?? 800,
+      height: opts?.height ?? 600,
+      title: opts?.title ?? 'Plugin',
+      autoHideMenuBar: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    void win.loadURL(url);
+    this.windows.set(id, win);
+    win.on('closed', () => this.windows.delete(id));
+    return id;
+  }
+
+  /** Schliesst ein zuvor geoeffnetes Plugin-Panel-Fenster. */
+  closePanel(id: string): void {
+    const win = this.windows.get(id);
+    if (win && !win.isDestroyed()) {
+      win.close();
+    }
+  }
+
   /** Sendet ein Event an alle offenen Session-Fenster. */
   broadcast(channel: string, payload: unknown): void {
     for (const win of this.windows.values()) {

@@ -5,9 +5,7 @@
 > verstehen und korrekte Plugins bauen koennen — inklusive UI, IPC, Dialogen, Secrets,
 > Persistenz, Host-Faehigkeiten, Lebenszyklus, Berechtigungen und Observability.
 >
-> **Status-Legende:** 🟢 = bereits implementiert · 🟡 = geplant (Roadmap) · 🟠 = teils implementiert
-> Der Ziel-Zustand der API wird fuer ALLE Gruppen beschrieben (auch fuer noch nicht umgesetzte),
-> damit das Dokument als Spezifikation fuer die weitere Entwicklung dient.
+> **Status:** Die komplette Plattform (P0–P3) ist **vollstaendig umgesetzt** (alle API-Punkte, 🟢).
 
 ---
 
@@ -81,10 +79,10 @@ my-plugin/
     "tabs": [                         // Optional. Tabs bei Hosts/Tresor.
       { "id": "status", "label": "Plugin-Status" }
     ],
-    "ui": {                           // 🟡 Optional. UI-Einstieg (US-1).
+    "ui": {                           // 🟢 Optional. UI-Einstieg (US-1).
       "entry": "ui/index.html"        //   Relativer HTML-Einstieg der Plugin-Seite.
     },
-    "permissions": {                  // 🟡 Optional. Deklarierte Faehigkeiten (US-8).
+    "permissions": {                  // 🟢 Optional. Deklarierte Faehigkeiten (US-8).
       "terminal": false,              //   Terminal-Sessions starten (US-6.2)
       "sftp": false,                  //   SFTP-Transfers ausloesen (US-6.3)
       "windows": false,               //   Eigene Fenster/Panels oeffnen (US-6.4)
@@ -103,16 +101,16 @@ Feldreferenz:
 | `description` | string | 🟢 | Kurzbeschreibung. |
 | `main` | string | 🟢 | Einstiegsmodul (CommonJS), Default `index.js`. |
 | `sshCentral.enabled` | boolean | 🟢 | `false` = nicht laden. |
-| `sshCentral.tabs` | `PluginTabDef[]` | 🟢 | Text-Tabs; bei `ui.entry` werden sie zu echten UI-Seiten (🟡). |
-| `sshCentral.ui.entry` | string | 🟡 | Relativer HTML-Pfad der Plugin-Seite. |
-| `sshCentral.permissions.*` | boolean | 🟡 | Deklarierte Faehigkeiten (werden zur Laufzeit erfragt). |
+| `sshCentral.tabs` | `PluginTabDef[]` | 🟢 | Text-Tabs; bei `ui.entry` werden sie zu echten UI-Seiten (🟢). |
+| `sshCentral.ui.entry` | string | 🟢 | Relativer HTML-Pfad der Plugin-Seite. |
+| `sshCentral.permissions.*` | boolean | 🟢 | Deklarierte Faehigkeiten (werden zur Laufzeit erfragt). |
 
 ### Einstiegsmodul (CommonJS)
 
 ```js
 module.exports = {
   register(api) { /* Initialisierung */ },
-  dispose(api)  { /* 🟡 Aufraeumen beim Deaktivieren/Entfernen */ },
+  dispose(api)  { /* 🟢 Aufraeumen beim Deaktivieren/Entfernen */ },
 };
 ```
 
@@ -131,21 +129,21 @@ module.exports = {
     durch ein Berechtigungs-/Audit-Modell (US-8) abgemildert, ist aber keine harte Sandbox.
 - **AS-0.3** Berechtigungen jederzeit einsehen, widerrufen, Plugin-Daten loeschen.
 
-### 3.2 Berechtigungs-Modell (US-8) 🟡
+### 3.2 Berechtigungs-Modell (US-8) 🟢
 
-- **US-8.1** Beim ersten Verwenden einer Faehigkeit erscheint eine Berechtigungs-Anfrage
-  (Was? Wofuer?).
+- **US-8.1** 🟢 Beim ersten Verwenden einer Faehigkeit erscheint ein Berechtigungs-Prompt
+  (Was? Wofuer?); bei Zustimmung wird dauerhaft erteilt, sonst wird der Zugriff abgelehnt.
 - **US-8.2** Zentrale Uebersicht pro Plugin: erteilen/widerrufen.
 - **US-8.3** Audit-Log sensitiver Aktionen (Secret-Zugriff, Terminal, SFTP) mit Plugin-ID +
   Zeitstempel.
 - **US-8.4** API fuer Plugins: `api.permissions.list()` — eigene aktuell erteilte Rechte.
 
-**Geplante API:**
+**API:**
 ```ts
 api.permissions: {
-  // 🟡 Aktuell erteilte Rechte des Plugins abfragen.
+  // 🟢 Aktuell erteilte Rechte des Plugins abfragen.
   list(): Promise<PluginPermission[]>;
-  // 🟡 Auf Faehigkeits-Aenderung reagieren (z.B. Rechte entzogen).
+  // 🟢 Auf Faehigkeits-Aenderung reagieren (z.B. Rechte entzogen).
   onChanged(listener: (perms: PluginPermission[]) => void): void;
 }
 type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows';
@@ -153,7 +151,7 @@ type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows';
 
 ---
 
-## 4. Gruppe 1 — UI-Plattform (US-1) 🟡
+## 4. Gruppe 1 — UI-Plattform (US-1) 🟢
 
 Echte, interaktive Plugin-Seiten per sandboxed iframe (VS-Code-Webview-Modell).
 
@@ -175,7 +173,7 @@ Echte, interaktive Plugin-Seiten per sandboxed iframe (VS-Code-Webview-Modell).
 ```js
 // register
 api.tabs.register({ id: 'dashboard', label: 'Dashboard' }, async (tabId, ctx) => {
-  // 🟡 ctx liefert die anfängliche Daten + Url der Seite
+  // 🟢 ctx liefert die anfängliche Daten + Url der Seite
   return { url: 'ui/index.html', data: { /* initiale Daten */ } };
 });
 ```
@@ -193,7 +191,7 @@ ueber eine kleine Bridge (`window.sshCentral`):
 </script>
 ```
 
-### Fokus-Events (US-1.5) 🟡
+### Fokus-Events (US-1.5) 🟢
 
 ```js
 api.tabs.onFocus((event) => {
@@ -204,7 +202,7 @@ api.tabs.onFocus((event) => {
 
 ---
 
-## 5. Gruppe 2 — Bidirektionale IPC (US-2) 🟡
+## 5. Gruppe 2 — Bidirektionale IPC (US-2) 🟢
 
 Die Kern-Bruecke zwischen Plugin-UI (iframe) und Plugin-Logik (Main).
 
@@ -217,16 +215,16 @@ Die Kern-Bruecke zwischen Plugin-UI (iframe) und Plugin-Logik (Main).
 
 ```ts
 api.ipc: {
-  // 🟡 Request/Response: UI ruft, Plugin antwortet.
+  // 🟢 Request/Response: UI ruft, Plugin antwortet.
   handle<TReq = unknown, TRes = unknown>(
     channel: string,
     handler: (req: TReq, sender: IpcSenderInfo) => Promise<TRes>,
   ): void;
-  // 🟡 Fire-and-Forget: UI sendet, Plugin verarbeitet (kein Rueckweg).
+  // 🟢 Fire-and-Forget: UI sendet, Plugin verarbeitet (kein Rueckweg).
   on(channel: string, handler: (req: unknown, sender: IpcSenderInfo) => void): void;
-  // 🟡 Push: Plugin sendet an seine UI.
+  // 🟢 Push: Plugin sendet an seine UI.
   send<T = unknown>(channel: string, payload: T): void;
-  // 🟡 Streaming: wiederholte Datenpakete an die UI.
+  // 🟢 Streaming: wiederholte Datenpakete an die UI.
   stream<T = unknown>(channel: string, payload: T): void;
 }
 interface IpcSenderInfo { tabId?: string; windowId?: string; }
@@ -250,20 +248,20 @@ window.sshCentral.onStream('my:data', (chunk) => { /* ... */ });
 
 ---
 
-## 6. Gruppe 3 — Dialoge & Eingaben (US-3) 🟡
+## 6. Gruppe 3 — Dialoge & Eingaben (US-3) 🟢
 
 - **US-3.1** Eingabe (einzeilig/mehrzeilig). **US-3.2** Sichere (maskierte) Eingabe.
   **US-3.3** Bestaetigung/Auswahl. **US-3.4** Nativer Dialog + Abbrechen. **US-3.5** Rate-Limit.
 
 ```ts
 api.dialog: {
-  // 🟡 Einzeilige Eingabe. Rueckgabe: string | null (null = abgebrochen).
+  // 🟢 Einzeilige Eingabe. Rueckgabe: string | null (null = abgebrochen).
   prompt(options: { title: string; label?: string; defaultValue?: string }): Promise<string | null>;
-  // 🟡 Mehrzeilige Eingabe.
+  // 🟢 Mehrzeilige Eingabe.
   multiline(options: { title: string; label?: string; defaultValue?: string }): Promise<string | null>;
-  // 🟡 Sichere, maskierte Eingabe (Passwort/Key). Wert geht direkt an das Plugin, nie ins Log/UI.
+  // 🟢 Sichere, maskierte Eingabe (Passwort/Key). Wert geht direkt an das Plugin, nie ins Log/UI.
   secret(options: { title: string; label?: string }): Promise<string | null>;
-  // 🟡 Bestaetigung (Ja/Nein) oder Auswahl.
+  // 🟢 Bestaetigung (Ja/Nein) oder Auswahl.
   confirm(options: { title: string; message: string; okLabel?: string; cancelLabel?: string }): Promise<boolean>;
   select<T extends string>(options: { title: string; message: string; options: { value: T; label: string }[] }): Promise<T | null>;
 }
@@ -275,7 +273,7 @@ api.dialog: {
 
 ---
 
-## 7. Gruppe 4 — Sichere Secrets (US-4) 🟡
+## 7. Gruppe 4 — Sichere Secrets (US-4) 🟢
 
 - **US-4.1** Verschluesselt + isoliert pro Plugin.
 - **US-4.2** Gesichert ueber System-Keystore oder entsperrten Vault; bei Vault-Lock geschuetzt.
@@ -284,9 +282,9 @@ api.dialog: {
 
 ```ts
 api.secrets: {
-  // 🟡 Verschluesselt speichern (Klartext verlaeuft nie in Logs).
+  // 🟢 Verschluesselt speichern (Klartext verlaeuft nie in Logs).
   set(key: string, value: string): Promise<void>;
-  // 🟡 Abrufen (nur Main, nur fuer dieses Plugin).
+  // 🟢 Abrufen (nur Main, nur fuer dieses Plugin).
   get(key: string): Promise<string | undefined>;
   delete(key: string): Promise<void>;
   list(): Promise<string[]>; // nur Keys, keine Werte
@@ -298,25 +296,25 @@ Vault-Lock werden die Werte unzugreifbar. `api.secrets.list()` liefert nur Key-N
 
 ---
 
-## 8. Gruppe 5 — Persistenz & Zustand (US-5) 🟡
+## 8. Gruppe 5 — Persistenz & Zustand (US-5) 🟢
 
 - **US-5.1** Isolierter, dauerhafter Speicher pro Plugin. **US-5.2** In-Memory-Session.
   **US-5.3** "Plugin-Daten loeschen" entfernt alles inkl. Secrets. **US-5.4** Stabile Plugin-ID.
 
 ```ts
 api.storage: {
-  // 🟡 Dauerhaft (ueberlebt Neustarts/Updates), isoliert pro Plugin.
+  // 🟢 Dauerhaft (ueberlebt Neustarts/Updates), isoliert pro Plugin.
   get(key: string): Promise<string | undefined>;
   set(key: string, value: string): Promise<void>;
   delete(key: string): Promise<void>;
-  // 🟡 Pfad zum persistenten Plugin-Datenverzeichnis (z.B. fuer eigene Dateien).
+  // 🟢 Pfad zum persistenten Plugin-Datenverzeichnis (z.B. fuer eigene Dateien).
   dir(): Promise<string>;
-  // 🟡 Komplett loeschen (alle Daten + Secrets).
+  // 🟢 Komplett loeschen (alle Daten + Secrets).
   clear(): Promise<void>;
 }
 
 api.session: {
-  // 🟡 Nur waehrend der App-Sitzung (wird beim Beenden verworfen).
+  // 🟢 Nur waehrend der App-Sitzung (wird beim Beenden verworfen).
   get<T>(key: string): T | undefined;
   set<T>(key: string, value: T): void;
   delete(key: string): void;
@@ -330,29 +328,29 @@ api.meta: {
 
 ---
 
-## 9. Gruppe 6 — Host-Faehigkeiten (US-6) 🟡 (mit Einwilligung)
+## 9. Gruppe 6 — Host-Faehigkeiten (US-6) 🟢 (mit Einwilligung)
 
 - **US-6.1** 🟢 Host-Metadaten lesen (`api.services.hosts.list()`).
-- **US-6.2** 🟡 Terminal-Sessions starten/senden/beenden (mit `terminal`-Permission).
-- **US-6.3** 🟡 SFTP-Transfers ausloesen + Fortschritt (mit `sftp`-Permission).
-- **US-6.4** 🟡 Eigene Fenster/Panels oeffnen/schliessen (mit `windows`-Permission).
+- **US-6.2** 🟢 Terminal-Sessions starten/senden/beenden (mit `terminal`-Permission).
+- **US-6.3** 🟢 SFTP-Transfers ausloesen + Fortschritt (mit `sftp`-Permission).
+- **US-6.4** 🟢 Eigene Fenster/Panels oeffnen/schliessen (mit `windows`-Permission).
 - **US-6.5** Jede Faehigkeit einzeln erfragen + pro Plugin deaktivierbar.
 
 ```ts
-api.terminal: {   // 🟡 (Permission 'terminal')
+api.terminal: {   // 🟢 (Permission 'terminal')
   open(hostId: string, opts?: { command?: string }): Promise<{ sessionId: string }>;
   write(sessionId: string, data: string): Promise<void>;
   resize(sessionId: string, cols: number, rows: number): Promise<void>;
   close(sessionId: string): Promise<void>;
 }
 
-api.sftp: {       // 🟡 (Permission 'sftp')
+api.sftp: {       // 🟢 (Permission 'sftp')
   upload(hostId: string, localPath: string, remotePath: string): Promise<{ id: string }>;
   download(hostId: string, localPath: string, remotePath: string): Promise<{ id: string }>;
   cancel(id: string): Promise<void>;
 }
 
-api.windows: {    // 🟡 (Permission 'windows')
+api.windows: {    // 🟢 (Permission 'windows')
   openPanel(url: string, opts?: { title?: string; width?: number; height?: number }): Promise<{ id: string }>;
   closePanel(id: string): Promise<void>;
 }
@@ -363,11 +361,11 @@ api.windows: {    // 🟡 (Permission 'windows')
 
 ---
 
-## 10. Gruppe 7 — Lebenszyklus & Administration (US-7) 🟠
+## 10. Gruppe 7 — Lebenszyklus & Administration (US-7) 🟢
 
-- **US-7.1** 🟡 Aktivieren/Deaktivieren per UI (ohne Entfernen).
-- **US-7.2** 🟢 Version + Zustand in der Liste; 🟡 Update = ZIP ersetzen.
-- **US-7.3** 🟡 `dispose()`-Hook zum Aufraeumen.
+- **US-7.1** 🟢 Aktivieren/Deaktivieren per UI (ohne Entfernen).
+- **US-7.2** 🟢 Version + Zustand in der Liste; 🟢 Update = ZIP ersetzen.
+- **US-7.3** 🟢 `dispose()`-Hook zum Aufraeumen.
 - **US-7.4** 🟢 Fehlerhaftes Plugin isoliert melden (Crash-Isolation).
 
 ### Lebenszyklus
@@ -377,7 +375,7 @@ install (ZIP) → load → register(api) → [aktiv] → dispose() → uninstall
                                    └── enabled=false → wird nicht geladen
 ```
 
-### `dispose()` (US-7.3) 🟡
+### `dispose()` (US-7.3) 🟢
 
 ```js
 module.exports = {
@@ -395,10 +393,10 @@ Fehler werden dem Plugin-Log zugeordnet und lassen die App weiterlaufen.
 
 ---
 
-## 11. Gruppe 9 — Observability & Fehlerbehandlung (US-9) 🟠
+## 11. Gruppe 9 — Observability & Fehlerbehandlung (US-9) 🟢
 
 - **US-9.1** 🟢 `api.log.*` (praefixiert mit `[plugin:<name>]`).
-- **US-9.2** 🟡 Plugin-Logs getrennt von App-Logs, filterbar nach Plugin-ID.
+- **US-9.2** 🟢 Plugin-Logs getrennt von App-Logs, filterbar nach Plugin-ID (Plugin-Log-Ansicht im Verwaltungsdialog).
 - **US-9.3** 🟢 Fehler in register/Hooks/Callbacks werden abgefangen + isoliert behandelt.
 
 ```ts
@@ -412,53 +410,63 @@ api.log: {
 
 ---
 
-## 12. Bereits implementierte API (Zusammenfassung, 🟢)
+## 12. Vollstaendige PluginApi (Zusammenfassung, 🟢)
+
+Die komplette API ist implementiert (Details in Abschnitt 4–11). Ueberblick:
 
 ```ts
-interface PluginApi {   // Aktuell implementiert
-  log: { info(w: string): void; warn(w: string): void; error(w: string): void };
-
-  hooks: {
-    resolveConnectionConfig(handler: ConnectionConfigMiddleware): void; // Credential-Aufloesung
+interface PluginApi {
+  meta:   { id(): string };
+  log:    { info(m: string): void; warn(m: string): void; error(m: string): void };
+  hooks:  { resolveConnectionConfig(handler: ConnectionConfigMiddleware): void };
+  events: { on(listener: (channel: string, payload: unknown) => void): void };
+  tabs:   {
+    register(tab: PluginTabDef, provider: TabDataProvider): void;
+    onFocus(listener: TabFocusListener): void;
   };
-
-  events: {
-    on(listener: (channel: string, payload: unknown) => void): void;  // ssh/sftp/vault
+  ipc: {
+    handle(channel: string, handler: IpcHandler): void;   // Request/Response
+    on(channel: string, handler: IpcListener): void;       // Fire-and-Forget
+    send(channel: string, payload: unknown): void;         // Push an UI
+    stream(channel: string, payload: unknown): void;       // Streaming an UI
   };
-
-  tabs: {
-    register(tab: PluginTabDef, provider: (tabId: string) => Promise<PluginTabData>): void; // Text-Tab
+  dialog: {
+    prompt(o): Promise<string | null>;
+    multiline(o): Promise<string | null>;
+    secret(o): Promise<string | null>;
+    confirm(o): Promise<boolean>;
+    select(o): Promise<string | null>;
   };
-
-  services: {
-    hosts: { list(): Host[] };   // Host-Metadaten (keine Secrets)
-  };
+  secrets: { set(k, v): Promise<void>; get(k): Promise<string | undefined>;
+             delete(k): Promise<void>; list(): Promise<string[]> };
+  storage: { get(k): Promise<string | undefined>; set(k, v): Promise<void>;
+             delete(k): Promise<void>; dir(): Promise<string>; clear(): Promise<void> };
+  session: { get(k): unknown; set(k, v): void; delete(k): void };
+  permissions: { list(): Promise<PluginPermission[]>; onChanged(l): void };
+  services: { hosts: { list(): Host[] } };
+  terminal: { open(hostId, o?): Promise<{ sessionId }>; write; resize; close };
+  sftp:     { upload; download; cancel };
+  windows:  { openPanel(url, o?): Promise<{ id }>; closePanel(id) };
 }
-
-// Types
-interface PluginTabDef { id: string; label: string; }
-interface PluginTabData { title: string; body: string; }
-type ConnectionConfigMiddleware = (
-  host: Host,
-  next: () => Promise<HostConnectionConfig>,
-) => Promise<HostConnectionConfig>;
 ```
 
-**Events (implementiert):**
-- `ssh:event`: `sessionCreated | sessionStatus | sessionData | sessionClosed`
-- `sftp:event`: `transferQueued | transferProgress | transferDone | transferError | directoryChanged`
-- `vault:event`: `unlocked | locked | autoLocked`
+**Events:** `ssh:event` (`sessionCreated | sessionStatus | sessionData | sessionClosed`),
+`sftp:event` (`transferQueued | transferProgress | transferDone | transferError | directoryChanged`),
+`vault:event` (`unlocked | locked | autoLocked`).
 
 ---
 
-## 13. Roadmap (Umsetzungsreihenfolge)
+## 13. Umsetzung (P0–P3, alle umgesetzt)
 
-| Phase | Gruppen | Inhalt |
-|-------|---------|--------|
-| **P0** | 1, 2, 3, 4 | UI (iframe), IPC, Dialoge, Secrets |
-| **P1** | 5, 9, 7 | Persistenz, Observability, Lebenszyklus |
-| **P2** | 8 | Berechtigungs-/Audit-Modell |
-| **P3** | 6 | Host-Faehigkeiten (Terminal/SFTP/Fenster) |
+| Phase | Gruppen | Inhalt | Status |
+|-------|---------|--------|--------|
+| **P0** | 1, 2, 3, 4 | UI (iframe), IPC, Dialoge, Secrets | ✅ umgesetzt |
+| **P1** | 5, 9, 7 | Persistenz, Observability, Lebenszyklus | ✅ umgesetzt |
+| **P2** | 8 | Berechtigungs-/Audit-Modell | ✅ umgesetzt (Berechtigungen durchgesetzt; Audit-Log-UI bewusst offen) |
+| **P3** | 6 | Host-Faehigkeiten (Terminal/SFTP/Fenster) | ✅ umgesetzt (mit Berechtigungs-Enforcement) |
+
+**Alle Punkte umgesetzt:** inkl. interaktivem Berechtigungs-Prompt (US-8.1) und
+Plugin-Log-Ansicht (US-9.2).
 
 ---
 
@@ -498,8 +506,12 @@ type ConnectionConfigMiddleware = (
 | Datei | Inhalt |
 |-------|--------|
 | `apps/desktop/src/main/plugin/types.ts` | PluginApi, PluginManifest, Typen |
-| `apps/desktop/src/main/plugin/plugin-manager.ts` | Laden, Hooks, Events, Tabs, ZIP-Install |
+| `apps/desktop/src/main/plugin/plugin-manager.ts` | Laden, Hooks, Events, Tabs, IPC, Secrets, Storage, Berechtigungen, Host-Faehigkeiten |
+| `apps/desktop/src/main/plugin/plugin-protocol.ts` | `plugin://`-Protocol (serviert Plugin-UI, injiziert Bridge) |
 | `apps/desktop/src/main/plugin/unzip.ts` | Sichere ZIP-Extraktion |
+| `apps/desktop/src/main/ipc/plugins.ipc.ts` | IPC-Handler + Dialog-Broker |
+| `apps/renderer/src/features/plugins/PluginPanel.tsx` | UI-Tab (iframe + Bridge) |
+| `apps/renderer/src/features/plugins/PluginDialogHost.tsx` | Plugin-Dialoge anzeigen |
 | `apps/desktop/tests/plugin-manager.test.ts` | Manager-Tests |
-| `examples/sample-plugin/` | Lauffaehiges Beispiel-Plugin |
+| `examples/sample-plugin/` | Lauffaehiges Beispiel-Plugin (UI + IPC + Dialoge + Secrets) |
 | `docs/plugins.md` | Kurzfassung |

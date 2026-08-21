@@ -16,6 +16,7 @@ const CSP = [
   "font-src 'self' data:",
   "img-src 'self' data:",
   "connect-src 'self'",
+  "frame-src 'self' plugin://*",
 ].join('; ');
 
 const MIME_TYPES: Record<string, string> = {
