@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
@@ -108,10 +107,9 @@ export function VaultGate() {
           <Box
             component="img"
             src="/ssh-central-logo.png"
-            alt="SSH Central"
-            sx={{ width: 72, height: 72, objectFit: 'contain', display: 'block', mx: 'auto' }}
+            alt={t('app.title')}
+            sx={{ width: 88, height: 88, objectFit: 'contain', display: 'block', mx: 'auto' }}
           />
-          <Typography variant="h5">{t('app.title')}</Typography>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>

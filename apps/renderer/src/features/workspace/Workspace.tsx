@@ -3,7 +3,6 @@ import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
@@ -35,9 +34,12 @@ export function Workspace() {
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <AppBar position="static" color="transparent" elevation={0}>
         <Toolbar variant="dense">
-          <Typography variant="h6" sx={{ mr: 2 }}>
-            {t('app.title')}
-          </Typography>
+          <Box
+            component="img"
+            src="/ssh-central-logo.png"
+            alt={t('app.title')}
+            sx={{ height: 32, width: 'auto', objectFit: 'contain', mr: 2 }}
+          />
           <Tabs value={view} onChange={(_, next) => setView(next as ViewId)}>
             <Tab label={t('tabs.hosts')} value="hosts" />
             <Tab label={t('tabs.vault')} value="vault" />
