@@ -1,515 +1,505 @@
-# SSH Central Plugin Development Guide
+# SSH Central Plugin Platform — Vollstaendige Entwickler-Referenz
 
-> **Ziel dieses Dokuments**: Es ist vollstaendig und eigenstaendig. Ein KI-Assistent (oder
-> Entwickler), der NUR diese Datei als Referenz erhaelt, soll alle API-Punkte verstehen und
-> ohne Rueckfragen ein korrektes, funktionierendes Plugin bauen koennen. Es beschreibt die
-> Plugin-API so, wie sie im aktuellen Quellcode (Stand: Monorepo `local-ssh-central`, Branch
-> `develop`) implementiert ist.
-
----
-
-## 1. Was ist ein Plugin?
-
-Ein SSH-Central-Plugin ist ein **privat installiertes, lokales Modul**, das im **Main-Process**
-der Electron-App laeuft. Es kann:
-
-- **Erweitern**: eigene Logik vor/nach bestehenden Ablaeufen einhaengen (z.B. eigene
-  Credential-Quelle, eigene Verbindungsoptionen).
-- **Ueberschreiben**: bestehende Logik komplett ersetzen (z.B. die Credential-Aufloesung).
-- **Neues aufbauen**: auf Events reagieren, eigene Tabs in der UI hinzufuegen, Hosts lesen.
-
-Ein Plugin wird als **ZIP-Datei** geliefert, in der App ueber
-`3-Punkte-Menue -> Plugins -> "ZIP installieren"` entpackt und aktiviert.
-
-> **Wichtig (Sicherheit):** Ein Plugin laeuft im Main-Process und hat damit **vollen
-> Rechnerzugriff** (Dateisystem, Netzwerk, ggf. den entschluesselten Vault). Installiere
-> und liefere **nur vertrauenswuerdige** Plugins.
+> **Ziel**: Dieses Dokument ist **vollstaendig und eigenstaendig**. Ein KI-Assistent oder
+> Entwickler, der NUR diese Datei als Referenz erhaelt, soll die gesamte Plugin-Plattform
+> verstehen und korrekte Plugins bauen koennen — inklusive UI, IPC, Dialogen, Secrets,
+> Persistenz, Host-Faehigkeiten, Lebenszyklus, Berechtigungen und Observability.
+>
+> **Status-Legende:** 🟢 = bereits implementiert · 🟡 = geplant (Roadmap) · 🟠 = teils implementiert
+> Der Ziel-Zustand der API wird fuer ALLE Gruppen beschrieben (auch fuer noch nicht umgesetzte),
+> damit das Dokument als Spezifikation fuer die weitere Entwicklung dient.
 
 ---
 
-## 2. Architektur-Kontext (kurz)
+## 1. Architektur (die wichtigste Grundlage)
 
-- Die App ist eine Electron-Anwendung: **Main-Process** (Node) + **sandboxed Renderer** (React).
-- **Secrets** (Passwoerter, Private Keys) liegen ausschliesslich im Main-Process bzw. im
-  verschluesselten KDBX-Vault. Der Renderer erhaelt nie Klartext-Secrets.
-- Plugins laufen **nur im Main-Process**. Dadurch koennen sie auf Hosts-Metadaten zugreifen,
-  Events empfangen und die Credential-Aufloesung beeinflussen — aber **nie direkt** auf
-  Renderer-React-Code. UI-Erweiterungen laufen ueber den **Tab-Mechanismus** (siehe Abschnitt 7).
-- Der Renderer bleibt sandboxed und sieht von einem Plugin nur das, was das Plugin explizit
-  ueber Tabs preisgibt.
+SSH Central ist eine Electron-Anwendung mit drei Zonen:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ MAIN-PROCESS (Node, vertraut)                                  │
+│  ├─ App-Services: Vault, Hosts, SSH, SFTP, Plugins             │
+│  ├─ PluginManager  → laedt Plugin-Logik (Hooks, Events)        │
+│  └─ Plugin-Module  → Laufen HIER (trusted, B1)                 │
+├────────────────────────────────────────────────────────────────┤
+│ RENDERER (React, sandboxed, CSP)                               │
+│  ├─ Hosts/Tresor/Plugin-Tabs                                   │
+│  └─ Plugin-UI  → sandboxed <iframe> (isolierter Prozess)       │
+├────────────────────────────────────────────────────────────────┤
+│ IPC-Bridge  (postMessage <-> ipcRenderer <-> Main)             │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Kern-Entscheidungen
+
+- **Logic (B1 — trusted Main):** Plugin-Logik laeuft **im Main-Process** mit vollem Zugriff.
+  Das ist fuer private, vertrauenswuerdige Plugins der pragmatische Standard. Ergaenzend wird
+  jede Plugin-Interaktion in try/catch isoliert (Crash-Isolation), damit ein fehlerhaftes
+  Plugin die App nicht zum Absturz bringt.
+- **UI (iframe, VS-Code-Webview-Modell):** Plugin-UI-Seiten werden als **statisches
+  HTML/JS/CSS** ausgeliefert (per `plugin://`-Protocol) und in einem **sandboxed `<iframe>`**
+  im Tab gerendert. Der iframe laeuft in einem eigenen, isolierten Prozess mit eigenem Origin
+  und unterliegt der CSP. Kommunikation nur ueber `postMessage`.
+- **Secrets bleiben im Main.** Der Renderer/iframe sieht nie Klartext-Secrets.
+- **Sicherheitsmodell:** Trusted-Main (B1). Ein Berechtigungs-/Audit-Modell (US-8) wird als
+  Metadaten + Audit-Log umgesetzt, nicht als harte Sandbox.
+
+### Abhaengigkeiten (Dependency Graph)
+
+```
+US-1 UI (iframe)  ──► US-2 IPC  ──► US-3 Dialoge
+                        │
+                        ▼
+US-4 Secrets ◄── US-3.2 (sichere Eingabe)
+US-5 Persistenz
+US-8 Berechtigungen ──► US-6 Host-Faehigkeiten (Terminal/SFTP/Fenster)
+US-7 Lebenszyklus, US-9 Observability (quer)
+```
 
 ---
 
-## 3. Plugin-Struktur & Manifest
-
-Ein Plugin ist ein Ordner mit einem `package.json` (Manifest) und mindestens einem
-Einstiegsmodul.
+## 2. Plugin-Struktur & Manifest
 
 ```
 my-plugin/
-├── package.json      # Manifest (Pflicht)
-└── index.js          # CommonJS-Einstiegsmodul mit register(api) (Pflicht)
+├── package.json          # Manifest (Pflicht)
+├── index.js              # CommonJS-Einstiegsmodul mit register(api) (Pflicht)
+└── ui/                   # Optional: UI-Ordner (bei UI-Plugins)
+    └── index.html        # Einstieg der Plugin-Seite (US-1)
 ```
 
 ### Manifest (`package.json`)
 
 ```jsonc
 {
-  "name": "my-plugin",                 // Pflicht. Wird als Installationsordner-Name + ID genutzt.
-  "version": "0.1.0",                  // Pflicht.
-  "description": "Kurzbeschreibung",   // Optional. Erscheint in der Plugin-Liste.
-  "main": "index.js",                  // Optional. Einstiegsmodul, Default: "index.js".
+  "name": "my-plugin",                // Pflicht. Eindeutige ID (npm-Konvention).
+  "version": "0.1.0",                 // Pflicht. SemVer.
+  "description": "Kurzbeschreibung",  // Optional.
+  "main": "index.js",                 // Optional. Einstiegsmodul, Default "index.js".
   "sshCentral": {
-    "enabled": true,                   // Optional. false = Plugin wird geladen aber deaktiviert.
-    "tabs": [                          // Optional. Extra-Tabs bei Hosts/Tresor.
+    "enabled": true,                  // Optional. false = deaktiviert (aber installiert).
+    "tabs": [                         // Optional. Tabs bei Hosts/Tresor.
       { "id": "status", "label": "Plugin-Status" }
-    ]
+    ],
+    "ui": {                           // 🟡 Optional. UI-Einstieg (US-1).
+      "entry": "ui/index.html"        //   Relativer HTML-Einstieg der Plugin-Seite.
+    },
+    "permissions": {                  // 🟡 Optional. Deklarierte Faehigkeiten (US-8).
+      "terminal": false,              //   Terminal-Sessions starten (US-6.2)
+      "sftp": false,                  //   SFTP-Transfers ausloesen (US-6.3)
+      "windows": false,               //   Eigene Fenster/Panels oeffnen (US-6.4)
+      "hosts": true                   //   Host-Metadaten lesen (US-6.1)
+    }
   }
 }
 ```
 
 Feldreferenz:
 
-| Feld | Typ | Pflicht | Bedeutung |
-|------|-----|---------|-----------|
-| `name` | string | ja | Eindeutige Plugin-ID (npm-konvention: Kleinbuchstaben/Hyphen). Wird als Ordnername und fuer Tab-Schluessel genutzt. |
-| `version` | string | ja | SemVer. Wird in der Plugin-Liste angezeigt. |
-| `description` | string | nein | Erscheint (nicht zwingend) in der Liste. |
-| `main` | string | nein | Relativer Pfad zum Einstiegsmodul. Default: `index.js`. |
-| `sshCentral.enabled` | boolean | nein | `false` = Plugin wird nicht geladen (aber weiterhin installiert). Default: `true`. |
-| `sshCentral.tabs` | `PluginTabDef[]` | nein | Vom Plugin registrierte Tabs. Siehe Abschnitt 7. |
+| Feld | Typ | Status | Bedeutung |
+|------|-----|--------|-----------|
+| `name` | string | 🟢 | Eindeutige Plugin-ID (Ordnername + Tab-/IPC-Schluessel). |
+| `version` | string | 🟢 | SemVer, in der Liste angezeigt. |
+| `description` | string | 🟢 | Kurzbeschreibung. |
+| `main` | string | 🟢 | Einstiegsmodul (CommonJS), Default `index.js`. |
+| `sshCentral.enabled` | boolean | 🟢 | `false` = nicht laden. |
+| `sshCentral.tabs` | `PluginTabDef[]` | 🟢 | Text-Tabs; bei `ui.entry` werden sie zu echten UI-Seiten (🟡). |
+| `sshCentral.ui.entry` | string | 🟡 | Relativer HTML-Pfad der Plugin-Seite. |
+| `sshCentral.permissions.*` | boolean | 🟡 | Deklarierte Faehigkeiten (werden zur Laufzeit erfragt). |
 
 ### Einstiegsmodul (CommonJS)
 
-Das Einstiegsmodul MUSS als **CommonJS** exportiert werden und eine `register(api)`-Funktion
-enthalten:
+```js
+module.exports = {
+  register(api) { /* Initialisierung */ },
+  dispose(api)  { /* 🟡 Aufraeumen beim Deaktivieren/Entfernen */ },
+};
+```
+
+> **CommonJS-Pflicht:** Plugins werden mit Node `require` geladen. ESM-Quellen nach CJS
+> kompilieren (`dist/index.cjs`) und als `main` angeben. `register` MUSS exportiert werden.
+
+---
+
+## 3. Gruppe 0 + 8 — Sicherheit & Berechtigungen (quer)
+
+### 3.1 Sicherheitsprinzipien (AS-0)
+
+- **AS-0.1** Zugriffe nur mit expliziter Freigabe.
+- **AS-0.2** Least Privilege: Plugins haben standardmaessig keine Rechte.
+  - 🟠 *Abweichung in der aktuellen Umsetzung:* Logic laeuft trusted im Main (B1). Das wird
+    durch ein Berechtigungs-/Audit-Modell (US-8) abgemildert, ist aber keine harte Sandbox.
+- **AS-0.3** Berechtigungen jederzeit einsehen, widerrufen, Plugin-Daten loeschen.
+
+### 3.2 Berechtigungs-Modell (US-8) 🟡
+
+- **US-8.1** Beim ersten Verwenden einer Faehigkeit erscheint eine Berechtigungs-Anfrage
+  (Was? Wofuer?).
+- **US-8.2** Zentrale Uebersicht pro Plugin: erteilen/widerrufen.
+- **US-8.3** Audit-Log sensitiver Aktionen (Secret-Zugriff, Terminal, SFTP) mit Plugin-ID +
+  Zeitstempel.
+- **US-8.4** API fuer Plugins: `api.permissions.list()` — eigene aktuell erteilte Rechte.
+
+**Geplante API:**
+```ts
+api.permissions: {
+  // 🟡 Aktuell erteilte Rechte des Plugins abfragen.
+  list(): Promise<PluginPermission[]>;
+  // 🟡 Auf Faehigkeits-Aenderung reagieren (z.B. Rechte entzogen).
+  onChanged(listener: (perms: PluginPermission[]) => void): void;
+}
+type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows';
+```
+
+---
+
+## 4. Gruppe 1 — UI-Plattform (US-1) 🟡
+
+Echte, interaktive Plugin-Seiten per sandboxed iframe (VS-Code-Webview-Modell).
+
+- **US-1.1** Eigene UI-Seite (HTML/CSS/JS) statt Klartext. ✅ **Ansatz:** `plugin://`-Protocol
+  + `<iframe sandbox>`.
+- **US-1.2** Freie Styles/Layouts. ✅ Der iframe laedt beliebige HTML/CSS/JS aus dem Plugin.
+- **US-1.3** Nahtlose Einfuegung in die Tab-Leiste.
+- **US-1.4** Reaktive Aktualisierung (Push an die UI).
+- **US-1.5** Fokus-Events (geoeffnet/geschlossen/in den Vordergrund).
+
+### Manifest + Registrierung
+
+```jsonc
+// Manifest
+{ "sshCentral": { "tabs": [{ "id": "dashboard", "label": "Dashboard" }],
+                  "ui": { "entry": "ui/index.html" } } }
+```
 
 ```js
-// index.js
+// register
+api.tabs.register({ id: 'dashboard', label: 'Dashboard' }, async (tabId, ctx) => {
+  // 🟡 ctx liefert die anfängliche Daten + Url der Seite
+  return { url: 'ui/index.html', data: { /* initiale Daten */ } };
+});
+```
+
+### In der UI-Seite (im iframe)
+
+Die Plugin-Seite ist ein normales HTML-Dokument. Sie kommuniziert mit dem Plugin-Modul
+ueber eine kleine Bridge (`window.sshCentral`):
+
+```html
+<!-- ui/index.html -->
+<script>
+  window.sshCentral.onMessage((msg) => { /* Nachricht vom Main-Plugin */ });
+  window.sshCentral.post({ type: 'userAction', value: 'x' }); // an Main-Plugin
+</script>
+```
+
+### Fokus-Events (US-1.5) 🟡
+
+```js
+api.tabs.onFocus((event) => {
+  // event.type: 'opened' | 'closed' | 'focused' | 'blurred'
+  api.log.info(`Tab ${event.type}`);
+});
+```
+
+---
+
+## 5. Gruppe 2 — Bidirektionale IPC (US-2) 🟡
+
+Die Kern-Bruecke zwischen Plugin-UI (iframe) und Plugin-Logik (Main).
+
+- **US-2.1** Eigene Kanäle registrieren.
+- **US-2.2** Push vom Main an die UI.
+- **US-2.3** Request/Response, Fire-and-Forget, Streaming.
+- **US-2.4** Validierung + Namespace-Beschraenkung (`plugin:<name>:*`), kein Cross-Plugin.
+
+### API (Main-Modul)
+
+```ts
+api.ipc: {
+  // 🟡 Request/Response: UI ruft, Plugin antwortet.
+  handle<TReq = unknown, TRes = unknown>(
+    channel: string,
+    handler: (req: TReq, sender: IpcSenderInfo) => Promise<TRes>,
+  ): void;
+  // 🟡 Fire-and-Forget: UI sendet, Plugin verarbeitet (kein Rueckweg).
+  on(channel: string, handler: (req: unknown, sender: IpcSenderInfo) => void): void;
+  // 🟡 Push: Plugin sendet an seine UI.
+  send<T = unknown>(channel: string, payload: T): void;
+  // 🟡 Streaming: wiederholte Datenpakete an die UI.
+  stream<T = unknown>(channel: string, payload: T): void;
+}
+interface IpcSenderInfo { tabId?: string; windowId?: string; }
+```
+
+### In der UI (iframe)
+
+```js
+// Request/Response
+const res = await window.sshCentral.invoke('my:action', { a: 1 });
+// Fire-and-Forget
+window.sshCentral.send('my:log', 'hello');
+// Empfangen
+window.sshCentral.on('my:status', (payload) => { /* ... */ });
+// Streaming empfangen
+window.sshCentral.onStream('my:data', (chunk) => { /* ... */ });
+```
+
+**Kanal-Validierung:** Alle von `api.ipc.*` registrierten Kanaele werden intern mit
+`plugin:<name>:` praefixiert und nur dafuer geroutet. Cross-Plugin-Zugriff ist ausgeschlossen.
+
+---
+
+## 6. Gruppe 3 — Dialoge & Eingaben (US-3) 🟡
+
+- **US-3.1** Eingabe (einzeilig/mehrzeilig). **US-3.2** Sichere (maskierte) Eingabe.
+  **US-3.3** Bestaetigung/Auswahl. **US-3.4** Nativer Dialog + Abbrechen. **US-3.5** Rate-Limit.
+
+```ts
+api.dialog: {
+  // 🟡 Einzeilige Eingabe. Rueckgabe: string | null (null = abgebrochen).
+  prompt(options: { title: string; label?: string; defaultValue?: string }): Promise<string | null>;
+  // 🟡 Mehrzeilige Eingabe.
+  multiline(options: { title: string; label?: string; defaultValue?: string }): Promise<string | null>;
+  // 🟡 Sichere, maskierte Eingabe (Passwort/Key). Wert geht direkt an das Plugin, nie ins Log/UI.
+  secret(options: { title: string; label?: string }): Promise<string | null>;
+  // 🟡 Bestaetigung (Ja/Nein) oder Auswahl.
+  confirm(options: { title: string; message: string; okLabel?: string; cancelLabel?: string }): Promise<boolean>;
+  select<T extends string>(options: { title: string; message: string; options: { value: T; label: string }[] }): Promise<T | null>;
+}
+```
+
+**Sicherheit US-3.2:** Der `secret`-Wert wird direkt aus dem nativen Dialog uebergeben,
+**nie** in IPC-Metadaten oder Logs geschrieben. **US-3.5:** Dialoge sind pro Plugin rate-limited
+(z.B. max. N in kurzer Zeit), Dialog-Spam wird blockiert.
+
+---
+
+## 7. Gruppe 4 — Sichere Secrets (US-4) 🟡
+
+- **US-4.1** Verschluesselt + isoliert pro Plugin.
+- **US-4.2** Gesichert ueber System-Keystore oder entsperrten Vault; bei Vault-Lock geschuetzt.
+- **US-4.3** `set/get/delete`, nie Klartext in Logs/IPC.
+- **US-4.4** Pro-Plugin einsehen/entfernen.
+
+```ts
+api.secrets: {
+  // 🟡 Verschluesselt speichern (Klartext verlaeuft nie in Logs).
+  set(key: string, value: string): Promise<void>;
+  // 🟡 Abrufen (nur Main, nur fuer dieses Plugin).
+  get(key: string): Promise<string | undefined>;
+  delete(key: string): Promise<void>;
+  list(): Promise<string[]>; // nur Keys, keine Werte
+}
+```
+
+**Speicherung:** Eigene KDBX-Gruppe pro Plugin im Vault (oder System-Keystore). Beim
+Vault-Lock werden die Werte unzugreifbar. `api.secrets.list()` liefert nur Key-Namen.
+
+---
+
+## 8. Gruppe 5 — Persistenz & Zustand (US-5) 🟡
+
+- **US-5.1** Isolierter, dauerhafter Speicher pro Plugin. **US-5.2** In-Memory-Session.
+  **US-5.3** "Plugin-Daten loeschen" entfernt alles inkl. Secrets. **US-5.4** Stabile Plugin-ID.
+
+```ts
+api.storage: {
+  // 🟡 Dauerhaft (ueberlebt Neustarts/Updates), isoliert pro Plugin.
+  get(key: string): Promise<string | undefined>;
+  set(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<void>;
+  // 🟡 Pfad zum persistenten Plugin-Datenverzeichnis (z.B. fuer eigene Dateien).
+  dir(): Promise<string>;
+  // 🟡 Komplett loeschen (alle Daten + Secrets).
+  clear(): Promise<void>;
+}
+
+api.session: {
+  // 🟡 Nur waehrend der App-Sitzung (wird beim Beenden verworfen).
+  get<T>(key: string): T | undefined;
+  set<T>(key: string, value: T): void;
+  delete(key: string): void;
+}
+
+api.meta: {
+  // 🟢 Stabile Plugin-ID (gleich bei Deaktivieren/Entfernen, nicht verschiebbar).
+  id(): string;
+}
+```
+
+---
+
+## 9. Gruppe 6 — Host-Faehigkeiten (US-6) 🟡 (mit Einwilligung)
+
+- **US-6.1** 🟢 Host-Metadaten lesen (`api.services.hosts.list()`).
+- **US-6.2** 🟡 Terminal-Sessions starten/senden/beenden (mit `terminal`-Permission).
+- **US-6.3** 🟡 SFTP-Transfers ausloesen + Fortschritt (mit `sftp`-Permission).
+- **US-6.4** 🟡 Eigene Fenster/Panels oeffnen/schliessen (mit `windows`-Permission).
+- **US-6.5** Jede Faehigkeit einzeln erfragen + pro Plugin deaktivierbar.
+
+```ts
+api.terminal: {   // 🟡 (Permission 'terminal')
+  open(hostId: string, opts?: { command?: string }): Promise<{ sessionId: string }>;
+  write(sessionId: string, data: string): Promise<void>;
+  resize(sessionId: string, cols: number, rows: number): Promise<void>;
+  close(sessionId: string): Promise<void>;
+}
+
+api.sftp: {       // 🟡 (Permission 'sftp')
+  upload(hostId: string, localPath: string, remotePath: string): Promise<{ id: string }>;
+  download(hostId: string, localPath: string, remotePath: string): Promise<{ id: string }>;
+  cancel(id: string): Promise<void>;
+}
+
+api.windows: {    // 🟡 (Permission 'windows')
+  openPanel(url: string, opts?: { title?: string; width?: number; height?: number }): Promise<{ id: string }>;
+  closePanel(id: string): Promise<void>;
+}
+```
+
+> Diese Faehigkeiten setzen die Berechtigungs-Freigabe (US-8) voraus. Ohne erteilte
+> Permission wird der Aufruf mit einem Fehler abgelehnt.
+
+---
+
+## 10. Gruppe 7 — Lebenszyklus & Administration (US-7) 🟠
+
+- **US-7.1** 🟡 Aktivieren/Deaktivieren per UI (ohne Entfernen).
+- **US-7.2** 🟢 Version + Zustand in der Liste; 🟡 Update = ZIP ersetzen.
+- **US-7.3** 🟡 `dispose()`-Hook zum Aufraeumen.
+- **US-7.4** 🟢 Fehlerhaftes Plugin isoliert melden (Crash-Isolation).
+
+### Lebenszyklus
+
+```
+install (ZIP) → load → register(api) → [aktiv] → dispose() → uninstall
+                                   └── enabled=false → wird nicht geladen
+```
+
+### `dispose()` (US-7.3) 🟡
+
+```js
 module.exports = {
-  register(api) {
-    // api ist das PluginApi-Objekt (siehe Abschnitt 4).
-    api.log.info('Mein Plugin ist aktiv.');
+  register(api) { /* ... */ },
+  dispose(api) {
+    // Aufraeumen: Listener entfernen, Timer stoppen, Ressourcen freigeben.
   },
 };
 ```
 
-> **CommonJS-Pflicht:** Plugins werden mit Node `require` geladen. Falls dein Plugin als ESM
-> entwickelt wird, musst du es nach CommonJS kompilieren und z.B. ein `dist/index.cjs` als
-> `main` ausliefern. Der `register`-Export muss direkt am Modulobjekt haengen
-> (`module.exports = { register }` oder `exports.register = ...`).
+### Crash-Isolation (US-7.4) 🟢
+
+Alle Plugin-Calls (register, Hooks, Events, IPC-Handler) sind intern in try/catch gekapselt.
+Fehler werden dem Plugin-Log zugeordnet und lassen die App weiterlaufen.
 
 ---
 
-## 4. Die Plugin-API — vollstaendiger Vertrag
+## 11. Gruppe 9 — Observability & Fehlerbehandlung (US-9) 🟠
 
-Ein Plugin erhaelt in `register(api)` das `PluginApi`-Objekt mit folgenden Mitgliedern:
+- **US-9.1** 🟢 `api.log.*` (praefixiert mit `[plugin:<name>]`).
+- **US-9.2** 🟡 Plugin-Logs getrennt von App-Logs, filterbar nach Plugin-ID.
+- **US-9.3** 🟢 Fehler in register/Hooks/Callbacks werden abgefangen + isoliert behandelt.
 
 ```ts
-interface PluginApi {
-  log: {
-    info(message: string): void;
-    warn(message: string): void;
-    error(message: string): void;
-  };
+api.log: {
+  // 🟢
+  info(message: string): void;
+  warn(message: string): void;
+  error(message: string): void;
+}
+```
+
+---
+
+## 12. Bereits implementierte API (Zusammenfassung, 🟢)
+
+```ts
+interface PluginApi {   // Aktuell implementiert
+  log: { info(w: string): void; warn(w: string): void; error(w: string): void };
 
   hooks: {
-    // Credential-Aufloesung erweitern/ueberschreiben (Middleware-Kette).
-    resolveConnectionConfig(handler: ConnectionConfigMiddleware): void;
+    resolveConnectionConfig(handler: ConnectionConfigMiddleware): void; // Credential-Aufloesung
   };
 
   events: {
-    // Auf Main-Events reagieren (ssh/sftp/vault).
-    on(listener: PluginEventListener): void;
+    on(listener: (channel: string, payload: unknown) => void): void;  // ssh/sftp/vault
   };
 
   tabs: {
-    // Einen zusaetzlichen Tab bei Hosts/Tresor registrieren.
-    register(tab: PluginTabDef, provider: TabDataProvider): void;
+    register(tab: PluginTabDef, provider: (tabId: string) => Promise<PluginTabData>): void; // Text-Tab
   };
 
   services: {
-    hosts: {
-      list(): Host[];   // Schreibgeschuetzte Host-Metadaten.
-    };
+    hosts: { list(): Host[] };   // Host-Metadaten (keine Secrets)
   };
 }
-```
 
-### 4.1 `api.log`
-
-Logging mit automatischem Plugin-Namen-Praefix (`[plugin:<name>]`).
-
-| Methode | Zweck |
-|---------|-------|
-| `api.log.info(message)` | Informationsmeldung |
-| `api.log.warn(message)` | Warnung |
-| `api.log.error(message)` | Fehler |
-
-```js
-api.log.info('Verbunden');
-api.log.error('Etwas ist schiefgelaufen');
-```
-
-### 4.2 `api.hooks.resolveConnectionConfig`
-
-Registriert eine **Middleware** fuer die Credential-Aufloesung. Bevor eine SSH-/SFTP-Verbindung
-aufgebaut wird, durchlaeuft die App diese Middleware-Kette. Damit kannst du die finale
-`HostConnectionConfig` veraendern (erweitern) oder komplett ersetzen (ueberschreiben).
-
-**Signatur:**
-```ts
-type ConnectionConfigMiddleware = (
-  host: Host,
-  next: () => Promise<HostConnectionConfig>,
-) => Promise<HostConnectionConfig>;
-```
-
-- `host` — die Host-Metadaten des Zielrechners.
-- `next()` — fuehrt den Rest der Kette (inkl. Standard-Vault-Aufloesung) aus und liefert die
-  aktuelle `HostConnectionConfig`.
-- Du MUSST immer ein `Promise<HostConnectionConfig>` zurueckgeben.
-
-**Erweitern** (rufe `next()` auf und modifiziere das Ergebnis):
-```js
-api.hooks.resolveConnectionConfig(async (host, next) => {
-  const config = await next();                 // Standard-Config (aus Vault)
-  config.keepaliveInterval = 30_000;           // eigene Optionen hinzufuegen
-  return config;
-});
-```
-
-**Ueberschreiben** (rufe `next()` NICHT auf, liefere eigene Config):
-```js
-api.hooks.resolveConnectionConfig(async (host) => ({
-  host: host.host,
-  port: host.port,
-  username: host.username,
-  password: 'mein-eigenes-geheimnis',          // z.B. aus einer eigenen Quelle
-}));
-```
-
-> Achtung: Wenn du `next()` nicht aufrufst, wird die Vault-Aufloesung **nicht** ausgefuehrt.
-> Du bist dann fuer alle noetigen Verbindungsfelder selbst verantwortlich.
-
-### 4.3 `api.events.on`
-
-Registriert einen Listener fuer Main-Events (SSH/SFTP/Vault). Der Listener wird fuer **jedes**
-Event mit `(channel, payload)` aufgerufen.
-
-**Signatur:**
-```ts
-type PluginEventListener = (channel: string, payload: unknown) => void;
-```
-
-- `channel` — einer der Event-Kanaele: `ssh:event`, `sftp:event`, `vault:event`.
-- `payload` — das Event-Objekt (siehe Abschnitt 6 fuer die genauen Formen).
-
-```js
-api.events.on((channel, payload) => {
-  api.log.info(`Event: ${channel}`);
-  if (channel === 'ssh:event' && payload.type === 'sessionCreated') {
-    api.log.info(`Neue Session: ${payload.session.title}`);
-  }
-});
-```
-
-### 4.4 `api.tabs.register`
-
-Registriert einen zusaetzlichen Tab, der in der Hauptansicht **neben Hosts und Tresor**
-erscheint. Beim Auswaehlen des Tabs ruft die App den `provider` auf und zeigt dessen
-Rueckgabe an.
-
-**Signatur:**
-```ts
-type PluginTabDef = { id: string; label: string };
-type TabDataProvider = (tabId: string) => Promise<PluginTabData>;
-interface PluginTabData { title: string; body: string; }
-```
-
-```js
-api.tabs.register({ id: 'status', label: 'Plugin-Status' }, async (tabId) => ({
-  title: 'Mein Status',
-  body: 'Ein einfacher, monospaced Text-Inhalt.',
-}));
-```
-
-> Der `body` wird als Klartext gerendert (kein HTML). Nutze `\n` fuer Zeilenumbrueche.
-> Ein Plugin kann mehrere Tabs registrieren (verschiedene `id`).
-
-### 4.5 `api.services.hosts.list()`
-
-Liefert die **schreibgeschuetzten** Host-Metadaten (nur Main-Process-Daten, **keine Secrets** —
-Passwoerter/Keys liegen im Vault und werden NIE hier ausgegeben).
-
-```ts
-services: { hosts: { list(): Host[] } }
-```
-
-```js
-const hosts = api.services.hosts.list();
-api.log.info(`Es gibt ${hosts.length} Hosts.`);
-```
-
----
-
-## 5. Daten-Typen
-
-### 5.1 `Host`
-
-```ts
-interface Host {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  authMethod: 'password' | 'key';
-  secrets: {
-    passwordRef?: string;
-    keyRef?: string;
-    keyPassphraseRef?: string;
-  };
-  tags: string[];
-  fingerprint?: string;
-  notes?: string;
-  createdAt: number;
-  updatedAt: number;
-}
-```
-
-- `secrets.*` sind nur **Referenz-IDs** auf Vault-Eintraege — nie Klartext.
-- `authMethod` ist `'password'` oder `'key'`.
-
-### 5.2 `HostConnectionConfig`
-
-Die Struktur, die ssh2 fuer den Verbindungsaufbau erhaelt. In `resolveConnectionConfig`
-kannst du sie modifizieren oder neu aufbauen:
-
-```ts
-interface HostConnectionConfig {
-  host: string;
-  port: number;
-  username: string;
-  password?: string;       // bei password-Auth
-  privateKey?: string;     // bei key-Auth (OpenSSH/PEM)
-  passphrase?: string;     // Passphrase des Private Keys
-  readyTimeout?: number;   // ms
-  keepaliveInterval?: number; // ms
-  expectedFingerprint?: string; // SHA256:... (TOFU)
-}
-```
-
----
-
-## 6. Events (Kanaele & Payloads)
-
-Der Listener aus `api.events.on` erhaelt `(channel, payload)`. Kanaele und Payload-Formen:
-
-### `ssh:event`
-
-```ts
-type SshEvent =
-  | { type: 'sessionCreated'; session: { id; hostId; status; title; startedAt } }
-  | { type: 'sessionStatus'; sessionId; status; error? }
-  | { type: 'sessionData'; sessionId; data }      // Terminal-Textdaten
-  | { type: 'sessionClosed'; sessionId };
-```
-
-### `sftp:event`
-
-```ts
-type SftpEvent =
-  | { type: 'transferQueued'; transfer: TransferInfo }
-  | { type: 'transferProgress'; transfer: TransferInfo }
-  | { type: 'transferDone'; transfer: TransferInfo }
-  | { type: 'transferError'; transfer: TransferInfo }
-  | { type: 'directoryChanged'; handle; path };
-```
-
-`TransferInfo`: `{ id, direction: 'upload'|'download', localPath, remotePath, totalBytes,
-transferredBytes, status, error? }`.
-
-### `vault:event`
-
-```ts
-type VaultEvent =
-  | { type: 'unlocked' }
-  | { type: 'locked' }
-  | { type: 'autoLocked'; reason };
-```
-
-> `payload` ist in JS dynamisch; in TypeScript kannst du die Union-Typen je `channel` als
-> `unknown` casten oder schrittweise pruefen (`payload.type === 'sessionCreated'`).
-
----
-
-## 7. Tabs (UI-Erweiterung) — Details
-
-Damit ein Tab in der UI erscheint, gibt es **zwei** zwingende Schritte:
-
-1. **Im Manifest deklarieren** (`sshCentral.tabs`), damit die App den Tab anzeigt.
-2. **Per `api.tabs.register(...)`** im `register(api)` den Inhalt-Provider registrieren.
-
-Manifest:
-```jsonc
-{ "sshCentral": { "tabs": [{ "id": "status", "label": "Plugin-Status" }] } }
-```
-
-`register`:
-```js
-api.tabs.register({ id: 'status', label: 'Plugin-Status' }, async () => ({
-  title: 'Status',
-  body: 'Zeile 1\nZeile 2',
-}));
-```
-
-Die App zeigt dann in der Tab-Leiste (neben Hosts/Tresor) einen Tab `Plugin-Status`.
-Beim Oeffnen wird der Provider aufgerufen und `title`/`body` gerendert. Ein Refresh-Button
-ruft den Provider erneut auf.
-
----
-
-## 8. Vollstaendiges Referenz-Plugin
-
-Ein Plugin, das alle API-Punkte demonstriert:
-
-```js
-module.exports = {
-  register(api) {
-    api.log.info('Reference-Plugin aktiviert.');
-
-    // 1) Credential-Aufloesung erweitern
-    api.hooks.resolveConnectionConfig(async (host, next) => {
-      const config = await next();
-      config.keepaliveInterval = 30_000;
-      api.log.info(`[ref] Verbinde zu ${host.name} (${host.host}:${host.port})`);
-      return config;
-    });
-
-    // 2) Auf Events reagieren
-    api.events.on((channel, payload) => {
-      if (channel === 'ssh:event' && payload.type === 'sessionClosed') {
-        api.log.info(`[ref] Session geschlossen: ${payload.sessionId}`);
-      }
-    });
-
-    // 3) Eigenen Tab
-    api.tabs.register({ id: 'info', label: 'Info' }, async () => {
-      const hosts = api.services.hosts.list();
-      return {
-        title: 'Reference Plugin',
-        body: [
-          `Hosts: ${hosts.length}`,
-          'Dies ist ein Beispiel-Text.',
-        ].join('\n'),
-      };
-    });
-  },
-};
-```
-
----
-
-## 9. Build & Distribution (ZIP)
-
-1. Entwickle das Plugin in einem eigenen Ordner (z.B. als Git-Repo).
-2. Stelle sicher, dass das `main`-Modul **CommonJS** ist und `register` exportiert.
-   ESM-Quellen mit einem Bundler (esbuild/rollup) nach CJS kompilieren, z.B. `dist/index.cjs`.
-3. Im Manifest auf das gebaute Modul zeigen: `"main": "dist/index.cjs"`.
-4. Das Plugin-Archiv als **ZIP** packen — Inhalt (package.json + Module) **an der ZIP-Wurzel**
-   ODER in einem einzigen Unterordner. Beides wird erkannt.
-5. In der App installieren: `3-Punkte-Menue -> Plugins -> "ZIP installieren"`.
-
-**Anforderungen an das ZIP:**
-- Muss ein `package.json` mit gueltigem `name` und `version` enthalten.
-- Der Pfad des `main`-Moduls muss im Archiv existieren.
-- Abhaengigkeiten: Das Plugin sollte **selbststaendig** sein (keine externen Runtime-Deps
-  voraussetzen) oder nur Node-Builtins / die Plugin-API nutzen.
-
----
-
-## 10. Sicherheit & Einschraenkungen
-
-- **Voller Zugriff:** Plugin laeuft im Main-Process → kann Dateien lesen/schreiben, Netzwerk
-  nutzen und (wenn entsperrt) den Vault ansprechen. **Nur vertrauenswuerdige Plugins.**
-- **Kein direkter Zugriff auf Secrets** ueber die API: `services.hosts.list()` liefert KEINE
-  Passwoerter/Keys. Wer eigene Secrets nutzt, haelt sie selbst (eigene Quelle) und gibt sie
-  ueber `resolveConnectionConfig` zurueck.
-- **Renderer bleibt sandboxed:** Ein Plugin kann den Renderer nicht direkt manipulieren; UI
-  laeuft ausschliesslich ueber Tabs.
-- **Kein DOM/React-Zugriff:** Plugins sind Node-Module ohne Browser-APIs.
-- **Keine eigenen IPC-Kanaele (aktuell):** Ein Plugin kann derzeit KEINE eigenen
-  Renderer-Kanäle registrieren. Die Kommunikation zur UI erfolgt ueber Tabs.
-- **Tabs sind Text-basiert:** `body` wird als Klartext (monospaced) gerendert, kein HTML.
-
----
-
-## 11. Best Practices
-
-- **Idempotent registrieren:** `register(api)` kann bei App-Neustart mehrfach laufen (bei jedem
-  Plugin-Load). Registriere Hooks/Events/Tabs einmal pro `register`-Aufruf; der PluginManager
-  sammelt sie neu bei jedem Load.
-- **Async korrekt behandeln:** `resolveConnectionConfig`-Handler MUSS ein Promise zurueckgeben;
-  `tabs`-Provider MUSS async sein.
-- **Fehler abfangen:** Wirf keine ungehandelten Exceptions aus `register`; der PluginManager
-  faengt sie und loggt sie, laedt das Plugin dann aber nicht.
-- **Logging nutzen:** Verwende `api.log.*` statt `console.*`, um das Plugin-Log zugeordnet zu
-  bekommen.
-- **Events filtern:** Empfangene Payloads nach `payload.type` filtern, da ein Kanal mehrere
-  Event-Typen traegt.
-
----
-
-## 12. Fehlerbehebung
-
-| Symptom | Ursache / Loesung |
-|---------|-------------------|
-| Plugin erscheint nicht in der Liste | `register` fehlt im `main`-Modul ODER `main`-Pfad existiert nicht ODER `sshCentral.enabled === false`. |
-| Plugin-Tab fehlt in der UI | Tab nicht im Manifest (`sshCentral.tabs`) deklariert ODER `api.tabs.register` nicht aufgerufen. |
-| `Ungueltiges Plugin` bei Installation | ZIP enthaelt kein gueltiges `package.json` (name + version) an der Wurzel/einem Unterordner. |
-| `require`-Fehler beim Laden | `main`-Modul ist kein gueltiges CommonJS; nach CJS kompilieren. |
-| Config wird nicht veraendert | In `resolveConnectionConfig` wurde `next()` vergessen (ueberschreiben) ODER der Handler wirft. |
-
----
-
-## 13. Referenz: komplette Typ-Deklarationen (TypeScript)
-
-Falls du dein Plugin in TypeScript entwickelst, koennen diese Typen als Grundlage dienen
-(sie entsprechen dem Quellcode):
-
-```ts
+// Types
 interface PluginTabDef { id: string; label: string; }
 interface PluginTabData { title: string; body: string; }
-
 type ConnectionConfigMiddleware = (
   host: Host,
   next: () => Promise<HostConnectionConfig>,
 ) => Promise<HostConnectionConfig>;
-
-type PluginEventListener = (channel: string, payload: unknown) => void;
-type TabDataProvider = (tabId: string) => Promise<PluginTabData>;
-
-interface PluginApi {
-  log: { info(msg: string): void; warn(msg: string): void; error(msg: string): void };
-  hooks: { resolveConnectionConfig(handler: ConnectionConfigMiddleware): void };
-  events: { on(listener: PluginEventListener): void };
-  tabs: { register(tab: PluginTabDef, provider: TabDataProvider): void };
-  services: { hosts: { list(): Host[] } };
-}
-
-interface PluginModule { register(api: PluginApi): void; }
 ```
+
+**Events (implementiert):**
+- `ssh:event`: `sessionCreated | sessionStatus | sessionData | sessionClosed`
+- `sftp:event`: `transferQueued | transferProgress | transferDone | transferError | directoryChanged`
+- `vault:event`: `unlocked | locked | autoLocked`
 
 ---
 
-## 14. Quellcode-Referenz (falls du im Monorepo schauen willst)
+## 13. Roadmap (Umsetzungsreihenfolge)
+
+| Phase | Gruppen | Inhalt |
+|-------|---------|--------|
+| **P0** | 1, 2, 3, 4 | UI (iframe), IPC, Dialoge, Secrets |
+| **P1** | 5, 9, 7 | Persistenz, Observability, Lebenszyklus |
+| **P2** | 8 | Berechtigungs-/Audit-Modell |
+| **P3** | 6 | Host-Faehigkeiten (Terminal/SFTP/Fenster) |
+
+---
+
+## 14. Sicherheit (Komplettbetrachtung)
+
+- **Logic:** Trusted Main (B1). Jeder Plugin-Aufruf ist try/catch-isoliert.
+- **UI:** Sandboxed iframe (eigener Prozess + Origin + CSP). Kein direkter Zugriff auf
+  App-Zustand oder Secrets.
+- **Secrets:** Nur Main, verschluesselt pro Plugin, bei Lock geschuetzt, nie in Logs/IPC.
+- **IPC:** Namespace-Beschraenkung (`plugin:<name>:*`), Validierung, kein Cross-Plugin.
+- **Berechtigungen:** Standardmaessig keine Rechte; Faehigkeiten (US-6) nur mit Freigabe (US-8).
+- **Dialoge:** Rate-limited gegen Spam.
+- **Installation:** ZIP-Extraktion mit Zip-Slip-Schutz.
+
+---
+
+## 15. Best Practices & Fehlerbehebung
+
+- Registrierung ist pro `register`-Aufruf idempotent (wird bei jedem Load neu gesammelt).
+- `resolveConnectionConfig`-Handler MUSS ein Promise zurueckgeben; Tab-Provider MUSS async sein.
+- Nie Secrets in `api.log` oder Tab-`body` schreiben.
+- Beim Ueberschreiben der Config (`next()` nicht aufrufen) bist du fuer alle Felder verantwortlich.
+- UI-Plugins: Alles Interaktive ueber `window.sshCentral`/IPC, nie DOM der Host-App anfassen.
+
+| Symptom | Loesung |
+|---------|---------|
+| Plugin erscheint nicht | `register` fehlt / `main`-Pfad falsch / `enabled:false` |
+| UI-Tab zeigt keinen Inhalt | `ui.entry`-Pfad fehlt oder `tabs.register` nicht aufgerufen |
+| IPC wird nicht empfangen | Kanal nicht mit `api.ipc.handle/on` registriert |
+| Secret erscheint im Log | Nicht via `api.log` ausgeben |
+| Host-Faehigkeit abgelehnt | Permission nicht erteilt (US-8) |
+
+---
+
+## 16. Quellcode-Referenz (Monorepo)
 
 | Datei | Inhalt |
 |-------|--------|
-| `apps/desktop/src/main/plugin/types.ts` | `PluginApi`, `PluginManifest`, Typen |
-| `apps/desktop/src/main/plugin/plugin-manager.ts` | Laden, Hook-Kette, Events, Tabs, ZIP-Install |
+| `apps/desktop/src/main/plugin/types.ts` | PluginApi, PluginManifest, Typen |
+| `apps/desktop/src/main/plugin/plugin-manager.ts` | Laden, Hooks, Events, Tabs, ZIP-Install |
 | `apps/desktop/src/main/plugin/unzip.ts` | Sichere ZIP-Extraktion |
-| `apps/desktop/tests/plugin-manager.test.ts` | Verhaltens-Tests des Managers |
+| `apps/desktop/tests/plugin-manager.test.ts` | Manager-Tests |
 | `examples/sample-plugin/` | Lauffaehiges Beispiel-Plugin |
-| `docs/plugins.md` | Kurzfassung (Installation + API) |
+| `docs/plugins.md` | Kurzfassung |
