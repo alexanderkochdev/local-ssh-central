@@ -27,7 +27,6 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@ssh-central/ipc-contracts": "workspace:*",
     "adm-zip": "^0.5.16",
     "esbuild": "^0.25.0"
   },

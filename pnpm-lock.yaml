@@ -213,9 +213,6 @@ importers:
 
   packages/plugin-sdk:
     dependencies:
-      '@ssh-central/ipc-contracts':
-        specifier: workspace:*
-        version: link:../ipc-contracts
       adm-zip:
         specifier: ^0.5.16
         version: 0.5.18

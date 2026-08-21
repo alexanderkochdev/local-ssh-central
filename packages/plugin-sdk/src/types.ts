@@ -1,6 +1,38 @@
-import type { Host, PluginTabData, PluginPermission } from '@ssh-central/ipc-contracts';
+// Das SDK ist selbststaendig (keine Abhaengigkeit auf weitere @ssh-central/*-Pakete),
+// damit es ausserhalb des Monorepos per file:/git-Referenz installierbar ist.
 
-export type { Host, PluginTabData, PluginPermission };
+/** Permission / Faehigkeit eines Plugins. */
+export type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows';
+
+/** Host-Metadaten (nur Referenzen auf Vault-Secrets, nie Klartext). */
+export interface Host {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authMethod: 'password' | 'key';
+  secrets: {
+    passwordRef?: string;
+    keyRef?: string;
+    keyPassphraseRef?: string;
+  };
+  tags: string[];
+  fingerprint?: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Inhalt eines Tabs (Text oder UI-Seiten-URL). */
+export interface PluginTabData {
+  title: string;
+  body?: string;
+  /** Falls gesetzt: laedt die Plugin-UI-Seite (plugin://) statt Klartext. */
+  url?: string;
+  /** Initiale Daten fuer die UI-Seite. */
+  data?: unknown;
+}
 
 /** Verbindungskonfiguration, die ein Plugin in `resolveConnectionConfig` liefern darf. */
 export interface HostConnectionConfig {
