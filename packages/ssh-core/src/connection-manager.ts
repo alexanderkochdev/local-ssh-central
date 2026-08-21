@@ -7,6 +7,8 @@ interface ManagedConnection {
   config: HostConnectionConfig;
   /** Anzahl aktiver Session-/SFTP-Nutzer. Verbindung wird bei 0 geschlossen. */
   refCount: number;
+  /** Erhaltener Host-Key-Fingerprint der etablierten Verbindung (TOFU). */
+  fingerprint?: string;
 }
 
 /**
@@ -56,6 +58,11 @@ export class ConnectionManager {
     } else {
       this.refCounts.set(hostId, remaining);
     }
+  }
+
+  /** Liefert den Host-Key-Fingerprint einer etablierten Verbindung (TOFU). */
+  getFingerprint(hostId: string): string | undefined {
+    return this.connections.get(hostId)?.fingerprint;
   }
 
   /** Erzwingt das Schliessen aller Verbindungen (z.B. bei Vault-Lock/App-Quit). */
@@ -108,6 +115,7 @@ export class ConnectionManager {
       client,
       config,
       refCount: this.refCounts.get(hostId) ?? 1,
+      fingerprint,
     };
     this.connections.set(hostId, managed);
     client.on('close', () => {

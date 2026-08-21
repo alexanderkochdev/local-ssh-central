@@ -26,6 +26,7 @@ export const vault: Record<string, string> = {
   'vault.unlock': 'Unlock',
   'vault.create': 'Create',
   'vault.masterPassword': 'Master password',
+  'vault.masterPasswordMin': 'At least 12 characters',
   'vault.confirmPassword': 'Confirm password',
   'vault.passwordMismatch': 'Passwords do not match',
   'vault.keyType': 'Key type',

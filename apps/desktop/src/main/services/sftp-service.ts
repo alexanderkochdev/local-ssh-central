@@ -45,6 +45,7 @@ export class SftpService {
   constructor(
     private readonly getConfig: (hostId: string) => Promise<HostConnectionConfig>,
     private readonly emit: SftpEventSink,
+    private readonly persistFingerprint: (hostId: string, fingerprint: string) => Promise<void>,
   ) {}
 
   async open(hostId: string): Promise<{ handle: string; cwd: string }> {
@@ -53,6 +54,12 @@ export class SftpService {
     const sftp = await new Promise<SFTPWrapper>((resolve, reject) => {
       client.sftp((err, handle) => (err ? reject(err) : resolve(handle)));
     });
+
+    // TOFU: Host-Key-Fingerprint nach erfolgreichem Connect persistieren (erstes Mal).
+    const fingerprint = this.connections.getFingerprint(`sftp:${hostId}`);
+    if (fingerprint) {
+      await this.persistFingerprint(hostId, fingerprint);
+    }
 
     // Startverzeichnis: Home des angemeldeten Users (viele Server erlauben kein "/"-Listing).
     // Fallback "/", wenn realpath fehlschlaegt - darf das Oeffnen nicht blockieren.

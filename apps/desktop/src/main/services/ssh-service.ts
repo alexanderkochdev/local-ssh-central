@@ -21,11 +21,19 @@ export class SshService {
   constructor(
     private readonly getConfig: (hostId: string) => Promise<HostConnectionConfig>,
     private readonly emit: SshEventSink,
+    private readonly persistFingerprint: (hostId: string, fingerprint: string) => Promise<void>,
   ) {}
 
   async connect(hostId: string, cols = 80, rows = 24): Promise<SessionInfo> {
     const config = await this.getConfig(hostId);
     const terminal = await this.sessions.open(hostId, config, cols, rows);
+
+    // TOFU: Nach erfolgreichem Verbindungsaufbau den Host-Key-Fingerprint persistieren
+    // (nur beim ersten Mal, da HostStore bereits vorhandene Fingerprints unangetastet laesst).
+    const fingerprint = this.connections.getFingerprint(hostId);
+    if (fingerprint) {
+      await this.persistFingerprint(hostId, fingerprint);
+    }
 
     const info: SessionInfo = {
       id: terminal.id,

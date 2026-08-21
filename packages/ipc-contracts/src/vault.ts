@@ -1,5 +1,8 @@
 /** Vault-Zustand und -Operationen (KeePass/KDBX) + SSH-Keychain. */
 
+/** Mindestlaenge des Master-Passworts (geteilt zwischen UI und Main-Enforcement). */
+export const MIN_MASTER_PASSWORD_LENGTH = 12;
+
 export type VaultStatus = 'no-vault' | 'locked' | 'unlocked';
 
 export interface VaultInfo {

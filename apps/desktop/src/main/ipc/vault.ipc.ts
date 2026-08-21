@@ -12,6 +12,13 @@ import type {
 } from '@ssh-central/ipc-contracts';
 import type { AppServices } from './types.js';
 
+// Brute-Force-Schutz beim Entsperren: nach N Fehlversuchen greift eine (exponentiell wachsende)
+// Sperrzeit. Argon2 verlangsamt Offline-Brueforce, dieser Throttle stoppt Online-Rateing ueber die UI.
+const MAX_FAILED_ATTEMPTS = 5;
+const BASE_BACKOFF_MS = 2_000;
+let failedAttempts = 0;
+let lockUntil = 0;
+
 /** Registriert die Vault-Ipc-Handler (Tresor + Eintraege + SSH-Keychain). */
 export function registerVaultIpc(
   services: AppServices,
@@ -29,8 +36,23 @@ export function registerVaultIpc(
   );
 
   ipcMain.handle(IpcChannels.vaultUnlock, async (_event, request: VaultUnlockRequest) => {
-    await services.vault.unlock(request.masterPassword);
-    onUnlock();
+    const now = Date.now();
+    if (now < lockUntil) {
+      const waitSec = Math.ceil((lockUntil - now) / 1000);
+      throw new Error(`Zu viele Fehlversuche. Bitte in ${waitSec}s erneut versuchen.`);
+    }
+    try {
+      await services.vault.unlock(request.masterPassword);
+      failedAttempts = 0;
+      onUnlock();
+    } catch (error) {
+      failedAttempts += 1;
+      if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+        const factor = failedAttempts - MAX_FAILED_ATTEMPTS + 1;
+        lockUntil = now + BASE_BACKOFF_MS * factor;
+      }
+      throw error;
+    }
   });
 
   ipcMain.handle(IpcChannels.vaultLock, () => {
@@ -38,6 +60,9 @@ export function registerVaultIpc(
     void services.ssh.dispose();
     void services.sftp.dispose();
     services.vault.lock();
+    // Explizites Sperren hebt einen laufenden Throttle auf.
+    failedAttempts = 0;
+    lockUntil = 0;
     onLock();
   });
 

@@ -22,6 +22,7 @@ export function registerFsIpc(): void {
 
   ipcMain.handle(IpcChannels.fsMkdirLocal, async (_event, request: MkdirLocalRequest) => {
     assertSafePath(request.path);
+    assertNotProtected(request.path);
     await fs.mkdir(request.path, { recursive: true });
   });
 
@@ -29,6 +30,7 @@ export function registerFsIpc(): void {
     IpcChannels.fsDeleteLocal,
     async (_event, request: { path: string; isDirectory: boolean }) => {
       assertSafePath(request.path);
+      assertNotProtected(request.path);
       if (request.isDirectory) {
         await fs.rm(request.path, { recursive: true, force: true });
       } else {
@@ -42,6 +44,8 @@ export function registerFsIpc(): void {
     async (_event, request: { oldPath: string; newPath: string }) => {
       assertSafePath(request.oldPath);
       assertSafePath(request.newPath);
+      assertNotProtected(request.oldPath);
+      assertNotProtected(request.newPath);
       await fs.rename(request.oldPath, request.newPath);
     },
   );
@@ -60,6 +64,7 @@ export function registerFsIpc(): void {
 
   ipcMain.handle(IpcChannels.fsCreateFileLocal, async (_event, filePath: string) => {
     assertSafePath(filePath);
+    assertNotProtected(filePath);
     await fs.writeFile(filePath, '', { flag: 'wx' });
   });
 
@@ -177,5 +182,29 @@ function assertSafePath(p: string): void {
   }
   if (p.includes('\0')) {
     throw new Error('Ungueltiger Pfad.');
+  }
+}
+
+// Kritische Systempfade, die von destruktiven Ops (Loeschen/Umbenennen/Anlegen) ausgenommen sind.
+const PROTECTED_PATHS: string[] =
+  process.platform === 'win32'
+    ? ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData']
+    : ['/etc', '/usr', '/bin', '/sbin', '/boot', '/dev', '/proc', '/sys', '/lib', '/lib64', '/root'];
+
+/**
+ * Verhindert destruktive Operationen (Loeschen/Umbenennen/Anlegen) auf dem Dateisystem-Root
+ * und in kritischen Systemverzeichnissen (Defense-in-Depth gegen Renderer-Kompromittierung).
+ */
+function assertNotProtected(p: string): void {
+  const trimmed = p.replace(/[\\/]+$/, '');
+  if (/^[a-zA-Z]:$/.test(trimmed) || trimmed === '/') {
+    throw new Error('Dieser Systempfad ist geschuetzt.');
+  }
+  const lower = trimmed.toLowerCase();
+  for (const sys of PROTECTED_PATHS) {
+    const sysLower = sys.toLowerCase();
+    if (lower === sysLower || lower.startsWith(sysLower + path.sep)) {
+      throw new Error('Dieser Systempfad ist geschuetzt.');
+    }
   }
 }

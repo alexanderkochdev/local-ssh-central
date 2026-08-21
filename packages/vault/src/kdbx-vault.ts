@@ -6,7 +6,7 @@ import type { SecretFields, VaultEntry, VaultState } from './types.js';
 import { VaultError } from './types.js';
 
 const VAULT_NAME = 'SSH Central';
-const MIN_MASTER_PASSWORD_LENGTH = 8;
+const MIN_MASTER_PASSWORD_LENGTH = 12;
 
 /**
  * KeePass/KDBX-Vault fuer SSH Central.

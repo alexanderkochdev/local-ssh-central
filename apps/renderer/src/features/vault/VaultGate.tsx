@@ -14,7 +14,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import AddIcon from '@mui/icons-material/Add';import { useVaultStore } from '../../store/vault-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
-import type { VaultMeta } from '@ssh-central/ipc-contracts';
+import { MIN_MASTER_PASSWORD_LENGTH, type VaultMeta } from '@ssh-central/ipc-contracts';
 
 /** Login-Screen: Datenbank wechseln, neue erstellen, entsperren. */
 export function VaultGate() {
@@ -54,7 +54,7 @@ export function VaultGate() {
   }
 
   async function handleCreateDatabase() {
-    if (!newName.trim() || newPassword.length < 8 || newPassword !== newConfirm) {
+    if (!newName.trim() || newPassword.length < MIN_MASTER_PASSWORD_LENGTH || newPassword !== newConfirm) {
       return;
     }
     await create(newName.trim(), newPassword);
@@ -68,7 +68,7 @@ export function VaultGate() {
 
   async function handleSetup(event: FormEvent) {
     event.preventDefault();
-    if (activeName && setupPassword === setupConfirm && setupPassword.length >= 8) {
+    if (activeName && setupPassword === setupConfirm && setupPassword.length >= MIN_MASTER_PASSWORD_LENGTH) {
       await create(activeName, setupPassword);
     }
   }
@@ -140,7 +140,15 @@ export function VaultGate() {
 
         {needsSetup ? (
           <form onSubmit={handleSetup} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <TextField label={t('vault.masterPassword')} type="password" value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} fullWidth required />
+            <TextField
+              label={t('vault.masterPassword')}
+              type="password"
+              value={setupPassword}
+              onChange={(e) => setSetupPassword(e.target.value)}
+              helperText={t('vault.masterPasswordMin')}
+              fullWidth
+              required
+            />
             <TextField
               label={t('vault.confirmPassword')}
               type="password"
@@ -169,7 +177,15 @@ export function VaultGate() {
         <DialogTitle>{t('vault.newDatabase')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           <TextField label={t('vault.databaseName')} value={newName} onChange={(e) => setNewName(e.target.value)} fullWidth required autoFocus />
-          <TextField label={t('vault.masterPassword')} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} fullWidth required />
+          <TextField
+            label={t('vault.masterPassword')}
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            helperText={t('vault.masterPasswordMin')}
+            fullWidth
+            required
+          />
           <TextField
             label={t('vault.confirmPassword')}
             type="password"
@@ -183,7 +199,7 @@ export function VaultGate() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>{t('action.cancel')}</Button>
-          <Button variant="contained" onClick={() => void handleCreateDatabase()} disabled={!newName.trim() || newPassword.length < 8 || newPassword !== newConfirm}>
+          <Button variant="contained" onClick={() => void handleCreateDatabase()} disabled={!newName.trim() || newPassword.length < MIN_MASTER_PASSWORD_LENGTH || newPassword !== newConfirm}>
             {t('vault.create')}
           </Button>
         </DialogActions>

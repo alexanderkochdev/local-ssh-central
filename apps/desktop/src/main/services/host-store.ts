@@ -67,6 +67,16 @@ export class HostStore {
     await this.persist();
   }
 
+  /** Speichert den TOFU-Host-Key-Fingerprint - nur beim ersten Connect (Trust-on-first-use). */
+  async setFingerprint(id: string, fingerprint: string): Promise<void> {
+    const host = this.hosts.find((h) => h.id === id);
+    if (!host || host.fingerprint) {
+      return;
+    }
+    host.fingerprint = fingerprint;
+    await this.persist();
+  }
+
   private async persist(): Promise<void> {
     const tmp = `${this.filePath}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(this.hosts, null, 2), 'utf8');

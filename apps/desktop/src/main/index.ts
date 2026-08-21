@@ -85,10 +85,22 @@ app.whenReady().then(async () => {
     return resolveConnectionConfig(host, vault.underlying);
   };
 
+  // TOFU: Host-Key-Fingerprint nach dem ersten erfolgreichen Connect am Host speichern.
+  const persistFingerprint = (hostId: string, fingerprint: string): Promise<void> =>
+    hosts.setFingerprint(hostId, fingerprint);
+
   services.vault = vault;
   services.hosts = hosts;
-  services.ssh = new SshService(getConfig, (event) => emit(IpcChannels.sshEvent, event));
-  services.sftp = new SftpService(getConfig, (event) => emit(IpcChannels.sftpEvent, event));
+  services.ssh = new SshService(
+    getConfig,
+    (event) => emit(IpcChannels.sshEvent, event),
+    persistFingerprint,
+  );
+  services.sftp = new SftpService(
+    getConfig,
+    (event) => emit(IpcChannels.sftpEvent, event),
+    persistFingerprint,
+  );
   sessionWindows = new SessionWindowManager(services);
 
   registerIpc(

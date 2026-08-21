@@ -52,7 +52,7 @@ describe('KdbxVault', () => {
 
   it('stores and reads secret fields per entry', async () => {
     const vault = await makeVault();
-    await vault.create('pw-123456');
+    await vault.create('pw-1234567890');
 
     const id = await vault.createEntry({
       title: 'Prod-Server',
@@ -77,12 +77,12 @@ describe('KdbxVault', () => {
 
   it('persists entries across lock/unlock and supports password change', async () => {
     const vault = await makeVault();
-    await vault.create('pw-123456');
+    await vault.create('pw-1234567890');
     const id = await vault.createEntry({ title: 'Key Host', keyData: '-----BEGIN OPENSSH PRIVATE KEY-----' });
 
-    await vault.changeMasterPassword('pw-123456', 'pw-654321');
+    await vault.changeMasterPassword('pw-1234567890', 'pw-0987654321');
     vault.lock();
-    await vault.unlock('pw-654321');
+    await vault.unlock('pw-0987654321');
     expect(vault.getSecret(id, 'keyData')).toContain('BEGIN OPENSSH');
   });
 });
