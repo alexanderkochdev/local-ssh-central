@@ -2,6 +2,22 @@ import { Client } from 'ssh2';
 import { createHash } from 'node:crypto';
 import type { HostConnectionConfig } from './types.js';
 
+/**
+ * TOFU-Host-Key-Pruefung: Wirft, wenn ein erwarteter Fingerprint vorliegt und der empfangene
+ * abweicht (moeglicher Man-in-the-Middle). Kein erwarteter oder kein empfangener Fingerprint
+ * => keine Pruefung (reine Funktion, separat testbar).
+ */
+export function verifyHostKey(
+  expectedFingerprint: string | undefined,
+  receivedFingerprint: string | undefined,
+): void {
+  if (expectedFingerprint && receivedFingerprint && receivedFingerprint !== expectedFingerprint) {
+    throw new Error(
+      `Host-Key geändert! Erwartet ${expectedFingerprint}, erhalten ${receivedFingerprint}. Möglicher Man-in-the-Middle-Angriff.`,
+    );
+  }
+}
+
 interface ManagedConnection {
   client: Client;
   config: HostConnectionConfig;
@@ -88,11 +104,11 @@ export class ConnectionManager {
       });
     });
 
-    if (config.expectedFingerprint && fingerprint && fingerprint !== config.expectedFingerprint) {
+    try {
+      verifyHostKey(config.expectedFingerprint, fingerprint);
+    } catch (err) {
       client.end();
-      throw new Error(
-        `Host-Key geändert! Erwartet ${config.expectedFingerprint}, erhalten ${fingerprint}. Möglicher Man-in-the-Middle-Angriff.`,
-      );
+      throw err;
     }
 
     await new Promise<void>((resolve, reject) => {

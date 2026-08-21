@@ -68,3 +68,6 @@ Private Keys) unter Windows und Linux, entschlüsselt mit einem vom User gewähl
 - [x] TOFU-Host-Key-Verifizierung implementiert (Fingerprint persistieren + Prüfung erzwingen)
 - [x] Unlock-Brute-Force-Throttle (exponentieller Backoff)
 - [x] `pnpm audit --prod` ohne Findings (Stand nach Override)
+- [x] Security-Logik automatisiert getestet (Vitest): TOFU `verifyHostKey`, Path-Guards
+  (`assertSafePath`/`assertNotProtected`), Credential-Resolver (Secrets nur aus Vault),
+  Keychain (Fingerprints/Public-Key-Format), HostStore-`setFingerprint` (nur beim 1. Mal)

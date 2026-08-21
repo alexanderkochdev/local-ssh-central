@@ -70,7 +70,15 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 - **Naming**: funktionsbasiert & kontextbewusst — niemals Projekt-/Scope-Namen wiederholen.
   Booleans mit `is`/`has`/`should`-Präfix. Selbst-dokumentierende Namen (keine Abkürzungen).
 - **Formatierung**: Prettier (2 Spaces, single quotes, LF), siehe `.editorconfig`.
-- **Tests**: Vitest pro Paket (`pnpm --filter <pkg> test`).
+- **Tests**: Vitest pro Paket (`pnpm --filter <pkg> test`). Tests liegen **separat** im Ordner
+  `tests/` je Paket (nie in `src`), damit der Produktions-Build (`tsc -p tsconfig.json`, `include: src`)
+  keine Testdateien nach `dist`/`out` kompiliert. Vitest-Configs filtern auf `tests/**/*.test.ts`;
+  Typcheck der Tests ueber `tsconfig.test.json` (`typecheck`-Skript prueft src UND tests). Die Suite
+  deckt Kernlogik + Security ab:
+  `vault` (KDBX + Keychain/Fingerprints), `ssh-core` (TOFU `verifyHostKey`), `sftp`
+  (TransferManager), `desktop` (Path-Guards, HostStore, Credential-Resolver), `renderer`
+  (Sortier-/Filter-Pure-Funktionen). Reine Logik wird als exportierte Funktion getestet,
+  um ohne Electron/React-Harness auszukommen.
 - **Ordner**: `src/` je Paket mit klarer Trennung (`src/main`, `src/preload` in Desktop).
 
 ## Commands (Root)

@@ -24,8 +24,11 @@ export interface SshKeyInfo {
  * und nur verschluesselt (ueber den KDBX-Vault) persistiert.
  */
 export function generateSshKey(type: SshKeyType, comment = 'ssh-central'): SshKeyInfo {
-  const keyType = type === 'rsa' ? 'ssh-rsa' : 'ssh-ed25519';
-  const pair = utils.generateKeyPairSync(keyType as never, { comment } as never);
+  // ssh2 erwartet den kurzen Algorithmusnamen ("rsa"/"ed25519"), nicht den
+  // OpenSSH-Typstring ("ssh-ed25519"); RSA benoetigt zudem die Bitlaenge.
+  const algo = type === 'rsa' ? 'rsa' : 'ed25519';
+  const opts = type === 'rsa' ? { bits: 2048, comment } : { comment };
+  const pair = utils.generateKeyPairSync(algo as never, opts as never);
   return describeKey(pair.private, undefined, comment);
 }
 
@@ -46,8 +49,9 @@ function describeKey(privateKey: string, passphrase?: string, comment?: string):
   const fingerprint =
     'SHA256:' + createHash('sha256').update(publicSshBuffer).digest('base64');
 
-  const base = publicSshBuffer.toString('utf8').trim();
+  // Lesbares authorized_keys-Format: "<typ> <base64(blob)> <kommentar>".
   const effectiveComment = comment ?? parsed.comment;
+  const base = `${parsed.type} ${publicSshBuffer.toString('base64')}`;
   const publicSsh = effectiveComment ? `${base} ${effectiveComment}` : base;
 
   return {

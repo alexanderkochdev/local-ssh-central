@@ -148,6 +148,10 @@ export class TransferManager {
       task.onUpdate({ ...task.info });
     });
 
+    // Datenfluss: Reader -> Writer. Ohne pipe() wuerde der Writer nie beendet und
+    // der Transfer hinge (Bug-Fix).
+    reader.pipe(writer);
+
     const done = new Promise<void>((resolve, reject) => {
       writer.on('finish', resolve);
       writer.on('error', reject);

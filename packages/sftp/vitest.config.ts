@@ -1,6 +1,5 @@
 import { defineConfig } from 'vitest/config';
 
-/** Tests liegen separat in tests/ - dist-Artefakte (Build-Output) werden ignoriert. */
 export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],

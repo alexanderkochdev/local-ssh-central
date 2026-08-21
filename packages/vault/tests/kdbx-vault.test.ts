@@ -2,8 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { KdbxVault } from './kdbx-vault.js';
-import { VaultError } from './types.js';
+import { KdbxVault } from '../src/kdbx-vault.js';
+import { VaultError } from '../src/types.js';
 
 let dir: string | undefined;
 
@@ -84,5 +84,43 @@ describe('KdbxVault', () => {
     vault.lock();
     await vault.unlock('pw-0987654321');
     expect(vault.getSecret(id, 'keyData')).toContain('BEGIN OPENSSH');
+  });
+
+  it('lock() verhindert weiteren Zugriff auf Secrets', async () => {
+    const vault = await makeVault();
+    await vault.create('pw-1234567890');
+    const id = await vault.createEntry({ title: 'S', password: 'geheim' });
+
+    vault.lock();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(vault.state).toBe('locked');
+    expect(vault.isUnlocked).toBe(false);
+    expect(() => vault.getSecret(id, 'password')).toThrow(VaultError);
+    expect(() => vault.listEntries()).toThrow(VaultError);
+  });
+
+  it('deleteEntry entfernt das Secret dauerhaft', async () => {
+    const vault = await makeVault();
+    await vault.create('pw-1234567890');
+    const id = await vault.createEntry({ title: 'S', password: 'geheim' });
+    expect(vault.getSecret(id, 'password')).toBe('geheim');
+
+    await vault.deleteEntry(id);
+    expect(vault.listEntries()).toHaveLength(0);
+    expect(vault.getSecret(id, 'password')).toBeUndefined();
+  });
+
+  it('changeMasterPassword mit falschem aktuellem Passwort wird abgelehnt', async () => {
+    const vault = await makeVault();
+    await vault.create('pw-1234567890');
+    await expect(
+      vault.changeMasterPassword('pw-0000000000', 'pw-1111111111'),
+    ).rejects.toBeInstanceOf(VaultError);
+  });
+
+  it('getSecret fuer unbekannte id liefert undefined', async () => {
+    const vault = await makeVault();
+    await vault.create('pw-1234567890');
+    expect(vault.getSecret('does-not-exist', 'password')).toBeUndefined();
   });
 });
