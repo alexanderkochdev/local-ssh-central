@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { assertSafePath, assertNotProtected } from '../src/main/ipc/path-guards.js';
 
 describe('assertSafePath', () => {
-  it('akzeptiert absolute Pfade', () => {
+  it('akzeptiert absolute Pfade (plattformabhaengig)', () => {
+    // '/home/user' ist auf POSIX und Windows absolut (leading slash); 'C:\...' nur auf Windows.
     expect(() => assertSafePath('/home/user')).not.toThrow();
-    expect(() => assertSafePath('C:\\Users\\alex')).not.toThrow();
+    if (process.platform === 'win32') {
+      expect(() => assertSafePath('C:\\Users\\alex')).not.toThrow();
+    }
   });
 
   it('verwirft relative Pfade (Path Traversal)', () => {
