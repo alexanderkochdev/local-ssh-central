@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 import AdmZip from 'adm-zip';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { join } from 'node:path';
 
 interface PluginPkg {
   name: string;
@@ -36,16 +36,26 @@ export async function buildPlugin(dir = process.cwd()): Promise<string> {
   return outfile;
 }
 
-/** Packt den Plugin-Ordner (package.json + dist + ui + assets) in ein installierbares ZIP. */
+/**
+ * Packt den Plugin-Ordner in ein installierbares ZIP (Whitelist). Enthalten sind
+ * ausschliesslich `package.json`, `dist/`, `ui/`, `assets/`, `LICENSE` und
+ * `.ssh-central` - kein `node_modules`, keine Doku, keine versteckten Dateien
+ * und nie das zuvor erzeugte Output-ZIP.
+ */
 export async function packPlugin(dir = process.cwd(), outDir = dir): Promise<string> {
   const pkg = await readPkg(dir);
-  const zip = new AdmZip();
-  const skip = new Set(['node_modules', '.git', '.vite', '.turbo', basename(outDir)]);
-  zip.addLocalFolder(dir, '', (name: string) => {
-    const parts = name.split('/');
-    return !parts.some((p) => skip.has(p) || (p.startsWith('.') && p !== '.ssh-central'));
-  });
   const zipName = `${pkg.name}-${pkg.version}.zip`;
+  const zip = new AdmZip();
+  // Whitelist der erlaubten Top-Level-Eintraege (deterministisch und plattformunabhaengig).
+  const allowedTop = new Set(['package.json', 'dist', 'ui', 'assets', 'LICENSE', 'LICENSE.md', '.ssh-central']);
+  zip.addLocalFolder(dir, '', (name: string) => {
+    // adm-zip liefert auf Windows Pfade mit Backslash -> fuer den Filter normalisieren.
+    const normalized = name.replace(/\\/g, '/');
+    if (normalized === zipName) {
+      return false;
+    }
+    return allowedTop.has(normalized.split('/')[0] ?? '');
+  });
   const out = join(outDir, zipName);
   await mkdir(outDir, { recursive: true });
   zip.writeZip(out);

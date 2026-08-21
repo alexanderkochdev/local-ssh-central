@@ -22,17 +22,19 @@ export class SessionManager {
     config: HostConnectionConfig,
     cols: number,
     rows: number,
+    command?: string,
   ): Promise<TerminalSession> {
     const client = await this.connections.acquire(hostId, config);
 
     const stream = await new Promise<import('ssh2').ClientChannel>((resolve, reject) => {
-      client.shell({ term: 'xterm-256color', cols, rows }, (err, s) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(s);
-      });
+      const cb = (err: Error | undefined, s: import('ssh2').ClientChannel) =>
+        err ? reject(err) : resolve(s);
+      // Mit `command` ein einzelnes Kommando (mit PTY) ausfuehren, sonst eine interaktive Shell.
+      if (command) {
+        client.exec(command, { pty: { term: 'xterm-256color', cols, rows } }, cb);
+      } else {
+        client.shell({ term: 'xterm-256color', cols, rows }, cb);
+      }
     });
 
     const id = randomUUID();

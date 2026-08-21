@@ -138,7 +138,13 @@ app.whenReady().then(async () => {
     },
     sftpCancel: async (id) => services.sftp.cancel(id),
     openWindow: async (url, opts) => ({ id: sessionWindows!.openPanel(url, opts) }),
-    closeWindow: async (id) => sessionWindows!.closePanel(id),
+    closeWindow: async (id) => sessionWindows!.closeWindow(id),
+    openTerminalWindow: async (hostId, command) => {
+      const session = await services.ssh.connect(hostId, 80, 24, command);
+      const id = sessionWindows!.openTerminalWindow(hostId, session.id);
+      return { id, sessionId: session.id };
+    },
+    openSftpWindow: async (hostId) => ({ id: sessionWindows!.openSftpWindow(hostId) }),
     dialog: (request, plugin) => pluginBroker.show(request, plugin),
     emitToUi: (push) => emit(IpcChannels.pluginsIpcEvent, push),
   };

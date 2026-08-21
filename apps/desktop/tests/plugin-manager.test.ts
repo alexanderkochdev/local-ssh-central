@@ -46,6 +46,8 @@ function makeManager(dir: string, override?: Partial<PluginServices>): PluginMan
     sftpCancel: async () => {},
     openWindow: async () => ({ id: 'w' }),
     closeWindow: async () => {},
+    openTerminalWindow: async () => ({ id: 'tw', sessionId: 's' }),
+    openSftpWindow: async () => ({ id: 'sw' }),
     dialog: async () => null,
     emitToUi: () => {},
   };
@@ -230,6 +232,64 @@ describe('PluginManager', () => {
     expect(res.ok).toBe(true);
     expect(res.value).toBe('ok');
     expect(mgr.permissionsFor('p11')).toContain('terminal');
+  });
+
+  it('windows.openTerminal verlangt terminal + windows Berechtigung', async () => {
+    await installPlugin(
+      'w1',
+      `api.ipc.handle('go', async () => api.windows.openTerminal('h1', { command: 'top' }));`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const denied = await mgr.invokeIpc({ plugin: 'w1', channel: 'go', payload: {} });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toContain('Berechtigung');
+
+    await mgr.grantPermission('w1', 'windows');
+    const noTerminal = await mgr.invokeIpc({ plugin: 'w1', channel: 'go', payload: {} });
+    expect(noTerminal.ok).toBe(false);
+    expect(noTerminal.error).toContain('terminal');
+
+    await mgr.grantPermission('w1', 'terminal');
+    const granted = await mgr.invokeIpc({ plugin: 'w1', channel: 'go', payload: {} });
+    expect(granted.ok).toBe(true);
+    expect(granted.value).toEqual({ id: 'tw', sessionId: 's' });
+  });
+
+  it('windows.openSftp verlangt sftp + windows Berechtigung', async () => {
+    await installPlugin(
+      'w2',
+      `api.ipc.handle('go', async () => api.windows.openSftp('h1'));`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    await mgr.grantPermission('w2', 'windows');
+    const noSftp = await mgr.invokeIpc({ plugin: 'w2', channel: 'go', payload: {} });
+    expect(noSftp.ok).toBe(false);
+    expect(noSftp.error).toContain('sftp');
+
+    await mgr.grantPermission('w2', 'sftp');
+    const granted = await mgr.invokeIpc({ plugin: 'w2', channel: 'go', payload: {} });
+    expect(granted.ok).toBe(true);
+    expect(granted.value).toEqual({ id: 'sw' });
+  });
+
+  it('windows.closeWindow verlangt windows Berechtigung', async () => {
+    await installPlugin(
+      'w3',
+      `api.ipc.handle('go', async () => api.windows.closeWindow('tw'));`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const denied = await mgr.invokeIpc({ plugin: 'w3', channel: 'go', payload: {} });
+    expect(denied.ok).toBe(false);
+
+    await mgr.grantPermission('w3', 'windows');
+    const granted = await mgr.invokeIpc({ plugin: 'w3', channel: 'go', payload: {} });
+    expect(granted.ok).toBe(true);
   });
 
   it('api.log erfasst Log-Eintraege (US-9.2)', async () => {

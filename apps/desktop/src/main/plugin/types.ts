@@ -155,6 +155,12 @@ export interface PluginApi {
   windows: {
     openPanel(url: string, opts?: { title?: string; width?: number; height?: number }): Promise<{ id: string }>;
     closePanel(id: string): Promise<void>;
+    /** Oeffnet ein Terminal-Fenster fuer eine geteilte Session; `sessionId` ist via api.terminal steuerbar. */
+    openTerminal(hostId: string, opts?: { command?: string }): Promise<{ id: string; sessionId: string }>;
+    /** Oeffnet ein SFTP-Fenster (Dateimanager) fuer den Host. */
+    openSftp(hostId: string): Promise<{ id: string }>;
+    /** Schliesst ein zuvor geoeffnetes Fenster (Panel, Terminal oder SFTP). */
+    closeWindow(id: string): Promise<void>;
   };
 }
 

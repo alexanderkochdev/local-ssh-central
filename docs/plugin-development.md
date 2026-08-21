@@ -350,9 +350,18 @@ api.sftp: {       // 🟢 (Permission 'sftp')
   cancel(id: string): Promise<void>;
 }
 
-api.windows: {    // 🟢 (Permission 'windows')
+api.windows: {    // 🟢 (Permission 'windows' + spezifische Permission fuer Session-Fenster)
   openPanel(url: string, opts?: { title?: string; width?: number; height?: number }): Promise<{ id: string }>;
   closePanel(id: string): Promise<void>;
+  // 🟢 Oeffnet ein echtes Terminal-Fenster fuer eine geteilte Session (keine Duplikat-Verbindung).
+  //    `sessionId` ist via `api.terminal.*` steuerbar. Beim Schliessen des Fensters endet die Session.
+  //    (Permissions: 'terminal' + 'windows')
+  openTerminal(hostId: string, opts?: { command?: string }): Promise<{ id: string; sessionId: string }>;
+  // 🟢 Oeffnet ein SFTP-Fenster (Dateimanager); Transfer-Fortschritt via `sftp:event` sichtbar.
+  //    (Permissions: 'sftp' + 'windows')
+  openSftp(hostId: string): Promise<{ id: string }>;
+  // 🟢 Schliesst ein zuvor geoeffnetes Fenster (Panel, Terminal oder SFTP).
+  closeWindow(id: string): Promise<void>;
 }
 ```
 
@@ -446,7 +455,9 @@ interface PluginApi {
   services: { hosts: { list(): Host[] } };
   terminal: { open(hostId, o?): Promise<{ sessionId }>; write; resize; close };
   sftp:     { upload; download; cancel };
-  windows:  { openPanel(url, o?): Promise<{ id }>; closePanel(id) };
+  windows:  { openPanel(url, o?): Promise<{ id }>; closePanel(id);
+              openTerminal(hostId, o?): Promise<{ id, sessionId }>;
+              openSftp(hostId): Promise<{ id }>; closeWindow(id) };
 }
 ```
 

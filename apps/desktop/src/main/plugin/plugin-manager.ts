@@ -45,6 +45,10 @@ export interface PluginServices {
   sftpCancel(id: string): Promise<void>;
   openWindow(url: string, opts?: { title?: string; width?: number; height?: number }): Promise<{ id: string }>;
   closeWindow(id: string): Promise<void>;
+  /** Oeffnet ein Terminal-Fenster fuer eine geteilte Session (gleiche Session wie api.terminal). */
+  openTerminalWindow(hostId: string, command?: string): Promise<{ id: string; sessionId: string }>;
+  /** Oeffnet ein SFTP-Fenster (Dateimanager) fuer den Host. */
+  openSftpWindow(hostId: string): Promise<{ id: string }>;
   dialog(request: Omit<PluginDialogRequest, 'plugin'>, plugin: string): Promise<string | boolean | null>;
   emitToUi(push: { plugin: string; channel: string; payload: unknown }): void;
 }
@@ -474,6 +478,20 @@ export class PluginManager {
           return this.services.openWindow(url, o);
         },
         closePanel: async (id) => {
+          await this.requirePermission(name, 'windows');
+          return this.services.closeWindow(id);
+        },
+        openTerminal: async (hostId, o) => {
+          await this.requirePermission(name, 'terminal');
+          await this.requirePermission(name, 'windows');
+          return this.services.openTerminalWindow(hostId, o?.command);
+        },
+        openSftp: async (hostId) => {
+          await this.requirePermission(name, 'sftp');
+          await this.requirePermission(name, 'windows');
+          return this.services.openSftpWindow(hostId);
+        },
+        closeWindow: async (id) => {
           await this.requirePermission(name, 'windows');
           return this.services.closeWindow(id);
         },

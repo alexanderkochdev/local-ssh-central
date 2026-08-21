@@ -7,15 +7,18 @@ import { NotificationBridge } from './components/NotificationBridge.js';
 import { NotificationsContainer } from './components/NotificationsContainer.js';
 import { useVaultStore } from './store/vault-store.js';
 
-type Route = { kind: 'terminal' | 'sftp'; id: string } | null;
+type Route = { kind: 'terminal' | 'sftp'; id: string; sessionId?: string } | null;
 
-/** Liest das Hash-Routing (#/terminal/<hostId> | #/sftp/<hostId>) fuer Session-Fenster. */
+/** Liest das Hash-Routing (#/terminal/<hostId>[?session=..] | #/sftp/<hostId>) fuer Session-Fenster. */
 function parseHash(): Route {
-  const match = window.location.hash.match(/^#\/(terminal|sftp)\/([^/]+)/);
+  const match = window.location.hash.match(/^#\/(terminal|sftp)\/([^/?]+)(?:\?([^/]*))?/);
   if (!match) {
     return null;
   }
-  return { kind: match[1] as 'terminal' | 'sftp', id: decodeURIComponent(match[2]!) };
+  const kind = match[1] as 'terminal' | 'sftp';
+  const id = decodeURIComponent(match[2]!);
+  const sessionId = new URLSearchParams(match[3] ?? '').get('session') ?? undefined;
+  return { kind, id, sessionId };
 }
 
 /**
@@ -34,7 +37,7 @@ export default function App() {
   }, [init]);
 
   if (route?.kind === 'terminal') {
-    return <TerminalWindow hostId={route.id} />;
+    return <TerminalWindow hostId={route.id} sessionId={route.sessionId} />;
   }
   if (route?.kind === 'sftp') {
     return <SftpWindow hostId={route.id} />;

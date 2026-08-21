@@ -15,7 +15,7 @@ export class SessionWindowManager {
 
   constructor(private readonly services: AppServices) {}
 
-  open(kind: SessionWindowKind, id: string): void {
+  open(kind: SessionWindowKind, id: string, sessionId?: string): string {
     // Hostname fuer einen sprechenden Fenstertitel in der Taskleiste.
     const host = this.services.hosts.getById(id);
     const hostName = host?.name ?? id;
@@ -47,15 +47,36 @@ export class SessionWindowManager {
     // Seitentitel ("SSH Central") darf den sprechenden Fenstertitel nicht ueberschreiben.
     win.on('page-title-updated', (event) => event.preventDefault());
 
-    // Hash-Routing: #/terminal/<hostId> bzw. #/sftp/<hostId>
+    // Hash-Routing: #/terminal/<hostId>[?session=<id>] bzw. #/sftp/<hostId>
+    // Ein optionaler `session`-Query haengt ein Fenster an eine bestehende (geteilte) Session.
+    const query = sessionId ? `?session=${sessionId}` : '';
     const devUrl = process.env.VITE_DEV_SERVER_URL;
-    const url = devUrl ? `${devUrl}/#/${kind}/${id}` : `${rendererUrl()}#/${kind}/${id}`;
+    const url = devUrl
+      ? `${devUrl}/#/${kind}/${id}${query}`
+      : `${rendererUrl()}#/${kind}/${id}${query}`;
     void win.loadURL(url);
 
     this.windows.set(key, win);
     win.on('closed', () => {
       this.windows.delete(key);
     });
+    return key;
+  }
+
+  /** Oeffnet ein Terminal-Fenster fuer eine bereits erzeugte Session. Beim Schliessen
+   *  des Fensters wird die Session sauber beendet (feuert ssh:event/sessionClosed). */
+  openTerminalWindow(hostId: string, sessionId: string): string {
+    const key = this.open('terminal', hostId, sessionId);
+    const win = this.windows.get(key);
+    win?.on('closed', () => {
+      this.services.ssh.disconnect(sessionId);
+    });
+    return key;
+  }
+
+  /** Oeffnet ein SFTP-Fenster (Dateimanager) fuer den Host. */
+  openSftpWindow(hostId: string): string {
+    return this.open('sftp', hostId);
   }
 
   /** Oeffnet ein generisches Plugin-Panel-Fenster (z.B. plugin://-UI) und liefert die ID. */
@@ -78,12 +99,17 @@ export class SessionWindowManager {
     return id;
   }
 
-  /** Schliesst ein zuvor geoeffnetes Plugin-Panel-Fenster. */
-  closePanel(id: string): void {
+  /** Schliesst ein zuvor geoeffnetes Fenster (Panel, Terminal oder SFTP) per ID. */
+  closeWindow(id: string): void {
     const win = this.windows.get(id);
     if (win && !win.isDestroyed()) {
       win.close();
     }
+  }
+
+  /** Schliesst ein zuvor geoeffnetes Plugin-Panel-Fenster. */
+  closePanel(id: string): void {
+    this.closeWindow(id);
   }
 
   /** Sendet ein Event an alle offenen Session-Fenster. */
