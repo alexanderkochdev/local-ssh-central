@@ -1,5 +1,6 @@
 appId: dev.alexanderkoch.sshcentral
 productName: SSH Central
+homepage: https://github.com/alexanderkochdev/ssh-central
 # Explizite, dateisystem-sichere Executable-Name. Ohne diesen wird sie aus dem
 # Paketnamen abgeleitet ("@ssh-central/desktop" -> "@ssh-centraldesktop", ungueltig).
 executableName: SSH-Central
