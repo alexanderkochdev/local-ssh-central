@@ -4,7 +4,13 @@
   "description": "SDK zum Entwickeln von SSH Central Plugins - Typen, definePlugin-Helper und Build/Pack-CLI",
   "license": "GPL-3.0-only",
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexanderkochdev/local-ssh-central"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -23,6 +29,7 @@
   "files": ["dist", "bin"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rimraf dist"
   },
