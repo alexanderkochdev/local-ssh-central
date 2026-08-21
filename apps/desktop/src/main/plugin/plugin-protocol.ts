@@ -19,8 +19,29 @@ const MIME_TYPES: Record<string, string> = {
 
 /** Bridge-Script, das in jede Plugin-HTML-Seite injiziert wird -> `window.sshCentral`. */
 const BRIDGE_SCRIPT = `<script>
-window.sshCentral=(function(){function post(m){window.parent.postMessage(Object.assign({__ssh:true},m),'*')}var pending={},seq=0;return{invoke:function(c,p){return new Promise(function(res,rej){var id=++seq;pending[id]={res:res,rej:rej};post({type:'invoke',id:id,channel:c,payload:p})})},send:function(c,p){post({type:'send',channel:c,payload:p})},onMessage:function(f){window.__sshOnMessage=f},on:function(c,f){window.__sshOn=window.__sshOn||{};window.__sshOn[c]=f},onStream:function(c,f){window.__sshStream=window.__sshStream||{};window.__sshStream[c]=f}}})();
-window.addEventListener('message',function(e){var d=e.data;if(!d||!d.__ssh)return;if(d.type==='response'){var p=pending[d.id];if(p){if(d.ok){p.res(d.value)}else{p.rej(new Error(d.error||'error'))}delete pending[d.id]}}else if(d.type==='push'){var f=window.__sshOn&&window.__sshOn[d.channel],s=window.__sshStream&&window.__sshStream[d.channel],m=window.__sshOnMessage;if(f)f(d.payload);if(s)s(d.payload);if(m)m(d)}});
+(function(){
+  var pending = {}, seq = 0;
+  function post(m){ window.parent.postMessage(Object.assign({__ssh:true}, m), '*'); }
+  window.sshCentral = {
+    invoke: function(c, p){ return new Promise(function(res, rej){ var id = ++seq; pending[id] = { res: res, rej: rej }; post({type:'invoke', id:id, channel:c, payload:p}); }); },
+    send: function(c, p){ post({type:'send', channel:c, payload:p}); },
+    onMessage: function(f){ window.__sshOnMessage = f; },
+    on: function(c, f){ window.__sshOn = window.__sshOn || {}; window.__sshOn[c] = f; },
+    onStream: function(c, f){ window.__sshStream = window.__sshStream || {}; window.__sshStream[c] = f; }
+  };
+  window.addEventListener('message', function(e){
+    var d = e.data; if (!d || !d.__ssh) return;
+    if (d.type === 'response') {
+      var p = pending[d.id];
+      if (p) { if (d.ok) { p.res(d.value); } else { p.rej(new Error(d.error || 'error')); } delete pending[d.id]; }
+    } else if (d.type === 'push') {
+      var f = window.__sshOn && window.__sshOn[d.channel];
+      var s = window.__sshStream && window.__sshStream[d.channel];
+      var m = window.__sshOnMessage;
+      if (f) f(d.payload); if (s) s(d.payload); if (m) m(d);
+    }
+  });
+})();
 </script>`;
 
 export function registerPluginSchemePrivileges(): void {
