@@ -4,6 +4,16 @@ Alle nennenswerten Aenderungen am `@ssh-central/plugin-sdk` werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.1.1] - 2026-08-22
+
+### Security
+- **`adm-zip` auf `^0.6.0` angehoben** — schliesst die High-Severity-CVE
+  [CVE-2026-39244](https://github.com/advisories/GHSA-xcpc-8h2w-3j85)
+  (GHSA-xcpc-8h2w-3j85): ein praepariertes ZIP konnte im Entpack-Pfad eine
+  4-GB-Speicherallokation ausloesen. Das SDK nutzt adm-zip nur zum Packen
+  (nie zum Entpacken von Fremdarchiven), dennoch ist die Dependency jetzt
+  gehaertet. `@types/adm-zip` ebenfalls auf `^0.5.8` aktualisiert.
+
 ## [1.1.0] - 2026-08-21
 
 ### Added
