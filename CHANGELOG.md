@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Fixed
+- **SSH-Keychain** (`@ssh-central/vault`): seltener Absturz (~0,4 %) beim Generieren von
+  ed25519-Schluesseln. ssh2 1.17.0 entfernt gelegentlich ein echtes Byte, wenn der
+  Public-Key mit `0x00` beginnt, wodurch der eigene `parseKey` scheiterte. `generateSshKey`
+  erzeugt jetzt mit Retry (bis zu 8 Versuche) statt einmal zu scheitern.
+- **CI / Packaging**: `homepage` wurde faelschlich in `electron-builder.yml` eingetragen
+  (dort unbekanntes Property -> "Invalid configuration object"). Das Feld liegt jetzt in
+  `apps/desktop/package.json`, wo electron-builder es fuer das deb-Target liest
+  ("Please specify project homepage" behoben).
+
 ## [1.0.0] - 2026-08-21
 
 Erster Open-Source-Release (GPL-3.0).

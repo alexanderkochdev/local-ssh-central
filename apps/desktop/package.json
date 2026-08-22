@@ -5,6 +5,7 @@
   "description": "SSH Central - Electron Main Process + Preload",
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",
   "license": "GPL-3.0-only",
+  "homepage": "https://github.com/alexanderkochdev/ssh-central",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "concurrently -k -n renderer,desktop \"vite --config ../renderer/vite.config.ts --port 5173\" \"wait-on tcp:127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 node scripts/run-electron-dev.mjs\"",

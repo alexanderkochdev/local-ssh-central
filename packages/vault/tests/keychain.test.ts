@@ -27,6 +27,17 @@ describe('keychain', () => {
       const key = generateSshKey('ed25519');
       expect(key.comment).toBe('ssh-central');
     });
+
+    it('erzeugt auch bei ssh2-Ed25519-Serialsierungs-Bug (Fuehrungs-Null-Byte) immer einen gueltigen Key', () => {
+      // ssh2 entfernt gelegentlich (~1/256) ein echtes Byte, wenn der ed25519-Public-Key
+      // mit 0x00 beginnt -> parseKey wuerde scheitern. generateSshKey retried dann.
+      // 400 Durchlaeufe decken den Fehlerfall statistisch sicher ab.
+      for (let i = 0; i < 400; i++) {
+        const key = generateSshKey('ed25519');
+        expect(key.keyType).toBe('ssh-ed25519');
+        expect(key.fingerprint).toMatch(FINGERPRINT_RE);
+      }
+    });
   });
 
   describe('importSshKey', () => {

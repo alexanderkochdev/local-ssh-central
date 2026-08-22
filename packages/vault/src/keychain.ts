@@ -28,8 +28,18 @@ export function generateSshKey(type: SshKeyType, comment = 'ssh-central'): SshKe
   // OpenSSH-Typstring ("ssh-ed25519"); RSA benoetigt zudem die Bitlaenge.
   const algo = type === 'rsa' ? 'rsa' : 'ed25519';
   const opts = type === 'rsa' ? { bits: 2048, comment } : { comment };
-  const pair = utils.generateKeyPairSync(algo as never, opts as never);
-  return describeKey(pair.private, undefined, comment);
+  // ssh2-Bug (ed25519): beginnt der generierte Public-Key zufaellig mit Byte 0x00
+  // (~1/256), entfernt ssh2 beim Serialisieren ein echtes Key-Byte -> der eigene
+  // parseKey scheitert. Darum erzeugen wir mit Retry, bis ein gueltiger Key da ist.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const pair = utils.generateKeyPairSync(algo as never, opts as never);
+    try {
+      return describeKey(pair.private, undefined, comment);
+    } catch {
+      // ssh2-Fehlerfall: naechster Versuch (bei 8 Versuchen < 1e-19 Ausfallwahrscheinlichkeit).
+    }
+  }
+  throw new VaultError('SSH-Schluessel konnte nicht erzeugt werden.');
 }
 
 /** Importiert einen vorhandenen Private Key (OpenSSH/PEM) und validiert ihn. */
