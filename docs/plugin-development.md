@@ -178,6 +178,12 @@ api.tabs.register({ id: 'dashboard', label: 'Dashboard' }, async (tabId, ctx) =>
 });
 ```
 
+> **Relative URLs** im Provider (z. B. `ui/index.html` oder `ui/extra.html`) werden
+> automatisch gegen `plugin://<name>/…` aufgeloest — so laedt jeder Tab eine eigene
+> Seite aus dem `ui/`-Ordner. Ein relativer Wert darf NICHT gegen die `app://`-Origin
+> aufgeloest werden (sonst `Bad request`). Absolute URLs (z. B. `plugin://…`,
+> `https://…`) bleiben unveraendert.
+
 ### In der UI-Seite (im iframe)
 
 Die Plugin-Seite ist ein normales HTML-Dokument. Sie kommuniziert mit dem Plugin-Modul
@@ -505,6 +511,7 @@ Plugin-Log-Ansicht (US-9.2).
 | Symptom | Loesung |
 |---------|---------|
 | Plugin erscheint nicht | `register` fehlt / `main`-Pfad falsch / `enabled:false` |
+| UI-Tab zeigt "Bad request" | Provider lieferte eine relative URL; diese wird seit dem Fix automatisch gegen `plugin://` aufgeloest. Stelle sicher, dass die Seite unter `ui/` liegt. |
 | UI-Tab zeigt keinen Inhalt | `ui.entry`-Pfad fehlt oder `tabs.register` nicht aufgerufen |
 | IPC wird nicht empfangen | Kanal nicht mit `api.ipc.handle/on` registriert |
 | Secret erscheint im Log | Nicht via `api.log` ausgeben |

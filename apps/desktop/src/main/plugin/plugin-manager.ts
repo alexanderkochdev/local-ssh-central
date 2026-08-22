@@ -172,9 +172,15 @@ export class PluginManager {
     const entry = this.tabProviders.get(`${plugin}:${tabId}`);
     if (!entry) throw new Error(`Tab "${plugin}:${tabId}" nicht gefunden.`);
     const data = await entry.provider(tabId, { url: entry.url });
-    // UI-Plugins: IMMER die vollstaendige plugin://-URL verwenden. Der Provider darf
-    // nur einen relativen Pfad liefern (z.B. "ui/index.html") - ein relativer Wert wuerde
-    // sonst gegen die app://-Origin aufgeloest und mit "Bad request" scheitern.
+    if (data?.url) {
+      // Relative Plugin-URL IMMER gegen plugin:// aufloesen. Ein relativer Wert wuerde
+      // sonst gegen die app://-Origin aufgeloest und mit "Bad request" scheitern.
+      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(data.url)) {
+        data.url = `plugin://${plugin}/${data.url.replace(/^\/+/, '')}`;
+      }
+      return data;
+    }
+    // Text-Plugin ohne Provider-URL: falls ein UI-Einstieg existiert, diesen verwenden.
     return entry.url ? { ...data, url: entry.url } : data;
   }
 
@@ -475,7 +481,12 @@ export class PluginManager {
       windows: {
         openPanel: async (url, o) => {
           await this.requirePermission(name, 'windows');
-          return this.services.openWindow(url, o);
+          // Relative URL -> gegen die plugin://-Origin des Plugins aufloesen, sonst
+          // laedt das Fenster gegen app:// und zeigt "Bad request".
+          const resolved = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)
+            ? url
+            : `plugin://${name}/${url.replace(/^\/+/, '')}`;
+          return this.services.openWindow(resolved, o);
         },
         closePanel: async (id) => {
           await this.requirePermission(name, 'windows');

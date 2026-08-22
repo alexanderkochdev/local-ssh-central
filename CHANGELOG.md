@@ -15,6 +15,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   (dort unbekanntes Property -> "Invalid configuration object"). Das Feld liegt jetzt in
   `apps/desktop/package.json`, wo electron-builder es fuer das deb-Target liest
   ("Please specify project homepage" behoben).
+- **Plugin-UI "Bad request"**: Relative Plugin-URLs (z. B. `ui/index.html`) wurden gegen
+  die `app://`-Origin aufgeloest und zeigten "Bad request". Tab-Provider-URLs und
+  `windows.openPanel`-URLs werden jetzt automatisch gegen `plugin://<name>/…` aufgeloest
+  (absolute URLs bleiben unveraendert); dadurch sind auch mehrere Seiten pro Plugin moeglich.
 
 ## [1.0.0] - 2026-08-21
 

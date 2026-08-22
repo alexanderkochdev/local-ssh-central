@@ -345,4 +345,37 @@ describe('PluginManager', () => {
     const tab = await mgr.getTab('uiplugin', 't');
     expect(tab.url).toBe('plugin://uiplugin/ui/index.html');
   });
+
+  it('getTab loest eine relative Provider-URL gegen plugin:// auf (kein "Bad request")', async () => {
+    const pdir = join(pluginsDir, 'relurl');
+    await mkdir(pdir, { recursive: true });
+    await writeFile(
+      join(pdir, 'package.json'),
+      JSON.stringify({ name: 'relurl', version: '1.0.0', main: 'index.js' }),
+    );
+    await writeFile(
+      join(pdir, 'index.js'),
+      `module.exports = { register: function (api) { api.tabs.register({ id: 't', label: 'T' }, async () => ({ title: 'X', url: 'ui/extra.html' })); } };`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const tab = await mgr.getTab('relurl', 't');
+    expect(tab.url).toBe('plugin://relurl/ui/extra.html');
+  });
+
+  it('windows.openPanel loest eine relative URL gegen plugin:// auf', async () => {
+    const opened: string[] = [];
+    await installPlugin(
+      'wpanel',
+      `api.ipc.handle('go', async () => api.windows.openPanel('ui/extra.html'));`,
+    );
+    const mgr = makeManager(pluginsDir, { openWindow: async (url) => { opened.push(url); return { id: 'p' }; } });
+    await mgr.loadAll();
+    await mgr.grantPermission('wpanel', 'windows');
+
+    const res = await mgr.invokeIpc({ plugin: 'wpanel', channel: 'go', payload: {} });
+    expect(res.ok).toBe(true);
+    expect(opened).toEqual(['plugin://wpanel/ui/extra.html']);
+  });
 });
