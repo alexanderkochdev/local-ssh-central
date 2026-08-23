@@ -8,15 +8,26 @@ import '@xterm/xterm/css/xterm.css';
 
 interface TerminalSessionProps {
   sessionId: string;
+  /** Terminal-Schriftgroesse aus den Einstellungen (live anwendbar). */
+  fontSize: number;
 }
 
 /**
  * Bindet eine SSH-Session an ein xterm.js-Terminal (WebGL-beschleunigt).
  * Datenstrom via `ssh:event` (sessionData), Eingaben via `ssh:write`.
  */
-export function TerminalSession({ sessionId }: TerminalSessionProps) {
+export function TerminalSession({ sessionId, fontSize }: TerminalSessionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
+
+  // Schriftgroesse aus den Einstellungen live anwenden, ohne das Terminal neu zu erstellen.
+  useEffect(() => {
+    const term = termRef.current;
+    if (term) {
+      term.options.fontSize = fontSize;
+      term.refresh(0, term.rows - 1);
+    }
+  }, [fontSize]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -26,7 +37,7 @@ export function TerminalSession({ sessionId }: TerminalSessionProps) {
 
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: 13,
+      fontSize,
       fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
       scrollback: 10_000,
       allowProposedApi: true,
@@ -81,6 +92,10 @@ export function TerminalSession({ sessionId }: TerminalSessionProps) {
       term.dispose();
       termRef.current = null;
     };
+    // Schriftgroesse bewusst nicht in den Deps: ein Aendern darf das Terminal NICHT neu
+    // erstellen (Verbindung/Scrollback wuerden verloren gehen); Updates laufen ueber den
+    // separaten fontSize-Effekt oben.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />;

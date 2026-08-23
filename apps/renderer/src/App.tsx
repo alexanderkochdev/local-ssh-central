@@ -6,6 +6,7 @@ import { SftpWindow } from './features/sftp/SftpWindow.js';
 import { NotificationBridge } from './components/NotificationBridge.js';
 import { NotificationsContainer } from './components/NotificationsContainer.js';
 import { useVaultStore } from './store/vault-store.js';
+import { useSettingsStore } from './store/settings-store.js';
 
 type Route = { kind: 'terminal' | 'sftp'; id: string; sessionId?: string } | null;
 
@@ -29,12 +30,19 @@ function parseHash(): Route {
 export default function App() {
   const status = useVaultStore((state) => state.status);
   const init = useVaultStore((state) => state.init);
+  const autoLockMinutes = useSettingsStore((s) => s.settings.autoLockMinutes);
   const [route] = useState<Route>(parseHash);
 
   // Auf Lock-/Auto-Lock-Events vom Main reagieren.
   useEffect(() => {
     return init();
   }, [init]);
+
+  // Persistierte Auto-Lock-Einstellung beim Start (und bei Aenderung) an den Main syncen,
+  // damit sie nach einem Neustart tatsaechlich greift - der Main startet sonst mit 15-min-Default.
+  useEffect(() => {
+    window.api.settings.setAutoLock(autoLockMinutes);
+  }, [autoLockMinutes]);
 
   if (route?.kind === 'terminal') {
     return <TerminalWindow hostId={route.id} sessionId={route.sessionId} />;

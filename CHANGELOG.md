@@ -4,9 +4,21 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+## [1.0.1] - 2026-08-22
 
 ### Fixed
+- **Light-Theme crashte die gesamte App** (kritisch): `createAppTheme('light')` lieferte
+  `background: undefined`, wodurch MUI's Deep-Merge `palette.background = undefined` setzte
+  und der Theme-Aufbau mit "Cannot read properties of undefined" scheiterte. Da es kein
+  ErrorBoundary gab, riss der Throw den ganzen Baum ab (weisser Bildschirm) - und weil die
+  Setting persistiert war, crashte jeder Reload erneut ("ausgesperrt"). Jetzt: explizite
+  Light-Hintergrundfarben + neue **ErrorBoundary** mit Recovery ("Einstellungen zuruecksetzen
+  & neu laden"), die auch Theme-Aufbau-Fehler abfaengt.
+- **Terminal-Schriftgroesse wirkte nie**: `TerminalSession` hatte `fontSize: 13` hartkodiert.
+  Die Einstellung ist jetzt verdrahtet und live anwendbar (`term.options.fontSize`).
+- **Auto-Lock nach Neustart**: die persistierte Auto-Lock-Einstellung wurde beim Start nicht
+  an den Main-Process uebergeben (dieser startete mit 15-min-Default). Jetzt wird sie beim
+  Start (und bei Aenderung) synchronisiert.
 - **SSH-Keychain** (`@ssh-central/vault`): seltener Absturz (~0,4 %) beim Generieren von
   ed25519-Schluesseln. ssh2 1.17.0 entfernt gelegentlich ein echtes Byte, wenn der
   Public-Key mit `0x00` beginnt, wodurch der eigene `parseKey` scheiterte. `generateSshKey`

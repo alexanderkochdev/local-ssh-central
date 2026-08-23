@@ -94,7 +94,7 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
 
   return (
     <Box sx={{ height: '100%', width: '100%', bgcolor: '#0d1117' }}>
-      <TerminalSession sessionId={sessionId} />
+      <TerminalSession sessionId={sessionId} fontSize={settings.terminalFontSize} />
     </Box>
   );
 }

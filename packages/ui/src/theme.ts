@@ -9,7 +9,13 @@ export function createAppTheme(mode: ColorMode): Theme {
       mode,
       primary: { main: '#1e88e5' },
       secondary: { main: '#00b0ff' },
-      background: mode === 'dark' ? { default: '#0f1720', paper: '#17222e' } : undefined,
+      // IMMER explizite Hintergrundfarben setzen - `undefined` wuerde MUI's Deep-Merge
+      // auf `palette.background = undefined` klemmen und beim Theme-Aufbau crashen
+      // ("Cannot read properties of undefined (reading 'default')").
+      background:
+        mode === 'dark'
+          ? { default: '#0f1720', paper: '#17222e' }
+          : { default: '#f5f6f8', paper: '#ffffff' },
     },
     shape: { borderRadius: 8 },
     typography: {

@@ -1,6 +1,6 @@
 {
   "name": "@ssh-central/desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "SSH Central - Electron Main Process + Preload",
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",

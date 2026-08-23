@@ -5,7 +5,10 @@ productName: SSH Central
 executableName: SSH-Central
 copyright: Copyright (c) 2026 Alexander Koch
 directories:
-  output: release
+  # Versions-spezifischer Output-Ordner (release/<version>/): jeder Release baut in einen
+  # frischen Ordner und kann nie gegen ein altes (moeglicherweise gelocktes) win-unpacked
+  # laufen (vermeidet EBUSY/resource-busy beim erneuten Packen).
+  output: release/${version}
   buildResources: build
 files:
   - out/**

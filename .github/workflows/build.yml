@@ -91,7 +91,7 @@ jobs:
         with:
           name: ssh-central-${{ matrix.os }}
           path: |
-            apps/desktop/release/*.exe
-            apps/desktop/release/*.AppImage
-            apps/desktop/release/*.deb
+            apps/desktop/release/**/*.exe
+            apps/desktop/release/**/*.AppImage
+            apps/desktop/release/**/*.deb
           if-no-files-found: warn
