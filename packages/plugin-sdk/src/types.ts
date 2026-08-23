@@ -2,7 +2,23 @@
 // damit es ausserhalb des Monorepos per file:/git-Referenz installierbar ist.
 
 /** Permission / Faehigkeit eines Plugins. */
-export type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows';
+export type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows' | 'settings';
+
+/** Geräteweite UserSettings (read-only fuer Plugins). */
+export interface UserSettingsValues {
+  language: string;
+  theme: 'dark' | 'light';
+  terminalFontSize: number;
+  showDebugLog: boolean;
+}
+
+/** Pro-Vault Settings (read-only fuer Plugins). */
+export interface VaultSettingsValues {
+  autoLockMinutes: number;
+  sftpConcurrency: number;
+  defaultOpener: string;
+  fileOpeners: Record<string, string>;
+}
 
 /** Host-Metadaten (nur Referenzen auf Vault-Secrets, nie Klartext). */
 export interface Host {
@@ -139,6 +155,10 @@ export interface PluginApi {
   };
   services: {
     hosts: { list(): Host[] };
+  };
+  settings: {
+    /** Read-only Snapshot der User- + Vault-Settings (Permission 'settings'). */
+    getAll(): Promise<{ user: UserSettingsValues; vault: VaultSettingsValues }>;
   };
   terminal: {
     open(hostId: string, opts?: { command?: string }): Promise<{ sessionId: string }>;

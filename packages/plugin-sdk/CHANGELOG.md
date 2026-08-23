@@ -4,6 +4,16 @@ Alle nennenswerten Aenderungen am `@ssh-central/plugin-sdk` werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.2.0] - 2026-08-22
+
+### Added
+- **`api.settings.getAll()`** — Plugins koennen die App-Settings (read-only) abfragen:
+  - `user` = geräteweite `UserSettings` (Sprache, Theme, Terminal-Schriftgroesse, Debug-Anzeige)
+  - `vault` = pro-Vault `VaultSettings` (Auto-Lock, SFTP-Parallelitaet, Datei-Openers)
+  - Benoetigt die neue Permission `'settings'` (Least Privilege); liefert einen Snapshot,
+    kein Schreibzugriff (Secrets bleiben exklusiv bei `api.secrets`).
+- `PluginPermission` um `'settings'` erweitert.
+
 ## [1.1.1] - 2026-08-22
 
 ### Security
