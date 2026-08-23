@@ -72,9 +72,16 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 - Woerterbuecher: `apps/renderer/src/i18n/translations.ts` (flache dotted Keys, `de` + `en`).
 - **Bei jeder UI-Aenderung neue Strings in BEIDEN Sprachen pflegen.** Fehlt ein Key,
   fallback auf `en`, sonst wird der Key selbst angezeigt (sichtbarer Bug).
-- Einstellungen (Sprache, Theme, Terminal, Auto-Lock, SFTP-Parallelitaet):
-  `apps/renderer/src/store/settings-store.ts` (persistiert in localStorage);
-  Auto-Lock/SFTP-Parallelitaet wirken ueber `window.api.settings.*` im Main-Process.
+- **Einstellungen** sind schema-getrieben (`packages/ipc-contracts/src/setting-definitions.ts`):
+  - `UserSettings` -> `%APPDATA%/@ssh-local/user-settings.json` (geräteweit; Theme/Sprache sind schon
+    auf dem Login-Screen verfuegbar via `UserSettingsDialog`).
+  - `VaultSettings` -> dedizierter KDBX-Eintrag "SSH Central App/Settings" (pro .kdbx, portabel).
+  - Beide erben von der `SettingsProvider`-Basisklasse (`apps/desktop/src/main/services/settings-provider.ts`,
+    atomar + validiert). Der Renderer haelt nur einen reaktiven IPC-Mirror
+    (`store/settings-store.ts`, Namespaces `user`/`vault`, kein localStorage mehr).
+  - UI: atomare `SettingComponent`/`SettingSectionComponent`/`SettingsRenderer`
+    (`apps/renderer/src/components/settings/`), Dialoge `UserSettingsDialog`/`VaultSettingsDialog`.
+  - Wirkung im Main (Auto-Lock, SFTP-Parallelitaet) wird beim Setzen/Unlock angewandt.
 
 ## Konventionen
 

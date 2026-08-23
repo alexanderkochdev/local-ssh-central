@@ -2,6 +2,8 @@ import type {
   Host,
   PluginPermission,
   PluginTabData,
+  UserSettingsValues,
+  VaultSettingsValues,
 } from '@ssh-central/ipc-contracts';
 import type { HostConnectionConfig } from '@ssh-central/ssh-core';
 
@@ -140,6 +142,10 @@ export interface PluginApi {
     hosts: {
       list(): Host[];
     };
+  };
+  settings: {
+    /** Read-only Snapshot der User- + Vault-Settings (Permission 'settings'). */
+    getAll(): Promise<{ user: UserSettingsValues; vault: VaultSettingsValues }>;
   };
   terminal: {
     open(hostId: string, opts?: { command?: string }): Promise<{ sessionId: string }>;

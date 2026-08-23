@@ -11,6 +11,8 @@ import type {
   PluginLogLevel,
   PluginPermission,
   PluginTabData,
+  UserSettingsValues,
+  VaultSettingsValues,
 } from '@ssh-central/ipc-contracts';
 import type { HostConnectionConfig } from '@ssh-central/ssh-core';
 import { extractZip } from './unzip.js';
@@ -32,6 +34,10 @@ const requireShim = createRequire(join(process.cwd(), 'plugin-noop.js'));
 /** Von der App in den PluginManager injizierte Faehigkeiten (Services + Bridge). */
 export interface PluginServices {
   hosts: () => Host[];
+  /** Read-only Zugriff auf die geräteweiten UserSettings (Permission 'settings'). */
+  getUserSettings(): UserSettingsValues;
+  /** Read-only Zugriff auf die VaultSettings der aktiven .kdbx (Permission 'settings'). */
+  getVaultSettings(): VaultSettingsValues;
   openTerminal(hostId: string, command?: string): Promise<{ sessionId: string }>;
   writeTerminal(sessionId: string, data: string): Promise<void>;
   resizeTerminal(sessionId: string, cols: number, rows: number): Promise<void>;
@@ -445,6 +451,15 @@ export class PluginManager {
       },
       services: {
         hosts: { list: () => this.services.hosts() },
+      },
+      settings: {
+        getAll: async () => {
+          await this.requirePermission(name, 'settings');
+          return {
+            user: this.services.getUserSettings(),
+            vault: this.services.getVaultSettings(),
+          };
+        },
       },
       terminal: {
         open: async (hostId, o) => {

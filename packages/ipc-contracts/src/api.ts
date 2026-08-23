@@ -50,6 +50,20 @@ import type {
   PluginTabData,
   PluginTabRequest,
 } from './plugins.js';
+import type { UserSettingsValues, VaultSettingsValues } from './setting-definitions.js';
+
+export type SettingsScope = 'user' | 'vault';
+
+export interface SettingsChangedPayload {
+  scope: SettingsScope;
+  values: UserSettingsValues | VaultSettingsValues;
+}
+
+/** Ergebnis von `settings:get`: beide Provider-Staende in einem Aufruf. */
+export interface SettingsGetResult {
+  user: UserSettingsValues;
+  vault: VaultSettingsValues;
+}
 
 /**
  * Die vollstaendige, typisierte API, die der Preload via contextBridge als `window.api`
@@ -115,11 +129,26 @@ export interface SshCentralApi {
     openInVscode(request: { folder?: string; remote?: { user?: string; host: string; path: string } }): Promise<void>;
   };
   /**
-   * Einstellungen, die im Main-Process wirken (Auto-Lock, SFTP-Parallelitaet).
+   * Schema-getriebene Einstellungen. Zwei getrennte Provider:
+   * - 'user'  -> geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfuegbar)
+   * - 'vault' -> pro Vault in der .kdbx (portabel)
+   * Beide validieren ueber die gemeinsamen SettingDefinitionen (ipc-contracts).
    */
   settings: {
+    getUser(): Promise<UserSettingsValues>;
+    getVault(): Promise<VaultSettingsValues>;
+    setUser(patch: Partial<UserSettingsValues>): Promise<UserSettingsValues>;
+    setVault(patch: Partial<VaultSettingsValues>): Promise<VaultSettingsValues>;
+    /** Wird nach jeder Aenderung an alle Fenster gepusht (Main -> Renderer). */
+    onChanged(handler: (payload: SettingsChangedPayload) => void): () => void;
+    // Bestehende Main-wirksame Kanäle (bis der Renderer vollständig migriert ist).
     setAutoLock(minutes: number): void;
     setSftpConcurrency(concurrency: number): void;
+  };
+  /** Native Ordner-/Datei-Dialoge (fuer SettingDefinition type 'folder'/'file'). */
+  dialog: {
+    pickFolder(): Promise<string | null>;
+    pickFile(): Promise<string | null>;
   };
   /**
    * Oeffnet neue, unabhaengige Fenster fuer Terminal-/SFTP-Sessions (unbegrenzt parallel).

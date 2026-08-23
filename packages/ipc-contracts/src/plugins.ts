@@ -1,6 +1,6 @@
 /** Plugin-Plattform: Metadaten, UI, IPC-Bridge, Dialoge, Secrets, Persistenz, Berechtigungen, Host-Faehigkeiten. */
 
-export type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows';
+export type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows' | 'settings';
 
 export interface PluginTab {
   id: string;

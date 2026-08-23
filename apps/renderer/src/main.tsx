@@ -9,7 +9,7 @@ import { useSettingsStore } from './store/settings-store.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 function Root() {
-  const themeMode = useSettingsStore((s) => s.settings.theme);
+  const themeMode = useSettingsStore((s) => s.user.theme);
   return (
     <Provider store={store}>
       <ThemeProvider theme={createAppTheme(themeMode)}>

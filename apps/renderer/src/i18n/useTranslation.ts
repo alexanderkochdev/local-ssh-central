@@ -7,8 +7,8 @@ import { useSettingsStore } from '../store/settings-store.js';
  * die aktuelle Sprache und einen Setter.
  */
 export function useTranslation() {
-  const language = useSettingsStore((s) => s.settings.language);
-  const set = useSettingsStore((s) => s.set);
+  const language = useSettingsStore((s) => s.user.language) as Locale;
+  const set = useSettingsStore((s) => s.setUser);
 
   const t = useCallback((key: string) => translate(language, key), [language]);
 

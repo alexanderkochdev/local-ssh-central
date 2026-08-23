@@ -1,65 +1,56 @@
 import { create } from 'zustand';
+import {
+  USER_SETTINGS_DEFAULTS,
+  VAULT_SETTINGS_DEFAULTS,
+  type UserSettingsValues,
+  type VaultSettingsValues,
+} from '@ssh-central/ipc-contracts';
 import { translate, type Locale } from '../i18n/translations.js';
 
-export type ThemeMode = 'dark' | 'light';
-
-export interface Settings {
-  language: Locale;
-  theme: ThemeMode;
-  terminalFontSize: number;
-  /** 0 = Auto-Lock deaktiviert. */
-  autoLockMinutes: number;
-  sftpConcurrency: number;
-  /** Dateiendung (ohne Punkt, klein) -> Opener-ID ("default" = Systemstandard). */
-  fileOpeners: Record<string, string>;
-  /** Standardprogramm zum Oeffnen von Dateien ("default", "__ask__" oder Opener-ID). */
-  defaultOpener: string;
-  /** Debug-Anzeige in Terminal/SFTP-Fenstern waehrend des Ladens. */
-  showDebugLog: boolean;
-}
-
-const DEFAULTS: Settings = {
-  language: 'de',
-  theme: 'dark',
-  terminalFontSize: 13,
-  autoLockMinutes: 15,
-  sftpConcurrency: 3,
-  fileOpeners: {},
-  defaultOpener: 'default',
-  showDebugLog: false,
-};
-
-const STORAGE_KEY = 'ssh-central-settings';
-
-function load(): Settings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) };
-    }
-  } catch {
-    // gespeicherte Settings beschädigt -> Defaults
-  }
-  return DEFAULTS;
-}
-
 interface SettingsState {
-  settings: Settings;
-  set: (patch: Partial<Settings>) => void;
+  /** Geräteweite Settings (theme, language, ...) - in %APPDATA%/@ssh-local. */
+  user: UserSettingsValues;
+  /** Pro-Vault-Settings (autoLock, sftpConcurrency, ...) - in der .kdbx. */
+  vault: VaultSettingsValues;
+  /** True, sobald die initialen Werte per IPC geladen wurden. */
+  loaded: boolean;
+  setUser: (patch: Partial<UserSettingsValues>) => void;
+  setVault: (patch: Partial<VaultSettingsValues>) => void;
+  /** Laedt User+Vault per IPC und abonniert `settings:changed` (z.B. nach Unlock). Gibt Cleanup zurueck. */
+  init: () => () => void;
   t: (key: string) => string;
 }
 
-/** Globale Einstellungen (persistiert in localStorage) + i18n-Uebersetzer. */
+/**
+ * Reaktiver Mirror der Settings. Der Renderer persistiert NIE selbst (kein localStorage):
+ * - `setUser`/`setVault` optimistisch in den Store, Persistenz + Validierung ueber IPC im Main.
+ * - Der Main validiert/clammt und pusht den gültigen Stand per `settings:changed` zurueck.
+ * - `init()` laedt die Werte und haelt sie ueber den Push-Kanal synchron.
+ */
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  settings: load(),
-  set: (patch) => {
-    const next = { ...get().settings, ...patch };
-    set({ settings: next });
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // localStorage nicht verfuegbar (z.B. privater Modus)
-    }
+  user: { ...USER_SETTINGS_DEFAULTS },
+  vault: { ...VAULT_SETTINGS_DEFAULTS },
+  loaded: false,
+  setUser: (patch) => {
+    set((state) => ({ user: { ...state.user, ...patch } }));
+    void window.api.settings.setUser(patch).then((values) => set({ user: values }));
   },
-  t: (key) => translate(get().settings.language, key),
+  setVault: (patch) => {
+    set((state) => ({ vault: { ...state.vault, ...patch } }));
+    void window.api.settings.setVault(patch).then((values) => set({ vault: values }));
+  },
+  init: () => {
+    void Promise.all([window.api.settings.getUser(), window.api.settings.getVault()]).then(
+      ([user, vault]) => set({ user, vault, loaded: true }),
+    );
+    // Main pusht Aenderungen (z.B. VaultSettings nach dem Unlock) -> synchron halten.
+    return window.api.settings.onChanged((payload) => {
+      if (payload.scope === 'user') {
+        set({ user: payload.values as UserSettingsValues });
+      } else {
+        set({ vault: payload.values as VaultSettingsValues });
+      }
+    });
+  },
+  t: (key) => translate(get().user.language as Locale, key),
 }));

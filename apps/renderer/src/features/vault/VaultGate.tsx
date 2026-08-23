@@ -11,9 +11,12 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import AddIcon from '@mui/icons-material/Add';import { useVaultStore } from '../../store/vault-store.js';
+import AddIcon from '@mui/icons-material/Add';
+import SettingsIcon from '@mui/icons-material/Settings';
+import { useVaultStore } from '../../store/vault-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { MIN_MASTER_PASSWORD_LENGTH, type VaultMeta } from '@ssh-central/ipc-contracts';
+import { UserSettingsDialog } from '../settings/UserSettingsDialog.js';
 
 /** Login-Screen: Datenbank wechseln, neue erstellen, entsperren. */
 export function VaultGate() {
@@ -28,6 +31,7 @@ export function VaultGate() {
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newConfirm, setNewConfirm] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -103,13 +107,23 @@ export function VaultGate() {
           borderRadius: 2,
         }}
       >
-        <Box sx={{ textAlign: 'center' }}>
+        <Box sx={{ textAlign: 'center', position: 'relative' }}>
           <Box
             component="img"
             src="/ssh-central-logo.png"
             alt={t('app.title')}
             sx={{ width: 88, height: 88, objectFit: 'contain', display: 'block', mx: 'auto' }}
           />
+          {/* Geräteweite Settings schon auf dem Login-Screen oeffnen (kein Unlock noetig). */}
+          <Tooltip title={t('settings.user.title')}>
+            <IconButton
+              size="small"
+              onClick={() => setSettingsOpen(true)}
+              sx={{ position: 'absolute', top: 0, right: 0 }}
+            >
+              <SettingsIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
@@ -202,6 +216,8 @@ export function VaultGate() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <UserSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </Box>
   );
 }

@@ -24,7 +24,7 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
   const [error, setError] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(presetSession ?? null);
   const { entries, add } = useDebugLog();
-  const settings = useSettingsStore((s) => s.settings);
+  const user = useSettingsStore((s) => s.user);
 
   useEffect(() => {
     // Bestehende (geteilte) Session: nur anhaengen, keine neue Verbindung aufbauen.
@@ -75,7 +75,7 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
   if (error) {
     return (
       <>
-        {settings.showDebugLog && <DebugLog entries={entries} />}
+        {user.showDebugLog && <DebugLog entries={entries} />}
         <EmptyState title="Verbindung fehlgeschlagen" description={error} />
       </>
     );
@@ -84,7 +84,7 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
   if (!sessionId) {
     return (
       <>
-        {settings.showDebugLog && <DebugLog entries={entries} />}
+        {user.showDebugLog && <DebugLog entries={entries} />}
         <Box sx={{ display: 'grid', placeItems: 'center', height: '100%' }}>
           <CircularProgress />
         </Box>
@@ -94,7 +94,7 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
 
   return (
     <Box sx={{ height: '100%', width: '100%', bgcolor: '#0d1117' }}>
-      <TerminalSession sessionId={sessionId} fontSize={settings.terminalFontSize} />
+      <TerminalSession sessionId={sessionId} fontSize={user.terminalFontSize} />
     </Box>
   );
 }

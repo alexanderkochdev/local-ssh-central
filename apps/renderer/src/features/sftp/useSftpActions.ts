@@ -1,6 +1,5 @@
 import { useState, type MutableRefObject, type DragEvent } from 'react';
-import type { Host } from '@ssh-central/ipc-contracts';
-import type { Settings } from '../../store/settings-store.js';
+import type { Host, VaultSettingsValues } from '@ssh-central/ipc-contracts';
 import { joinPath, parentLocalPath, parentPath, type PaneEntry } from './FilePane.js';
 import { getExt } from './OpenWithDialog.js';
 
@@ -26,8 +25,8 @@ interface UseSftpActionsOptions {
   handleRef: MutableRefObject<string | null>;
   hosts: Host[];
   hostId: string;
-  settings: Settings;
-  setSettings: (patch: Partial<Settings>) => void;
+  vault: VaultSettingsValues;
+  setVault: (patch: Partial<VaultSettingsValues>) => void;
   refreshLocal: (path: string) => Promise<void>;
   refreshRemote: (path: string) => Promise<void>;
   localCache: MutableRefObject<Map<string, PaneEntry[]>>;
@@ -46,8 +45,8 @@ export function useSftpActions({
   handleRef,
   hosts,
   hostId,
-  settings,
-  setSettings,
+  vault,
+  setVault,
   refreshLocal,
   refreshRemote,
   localCache,
@@ -226,12 +225,12 @@ export function useSftpActions({
 
   function openFile(side: Side, entry: PaneEntry): void {
     const ext = getExt(entry.name);
-    const preferred = settings.fileOpeners[ext];
+    const preferred = vault.fileOpeners[ext];
     if (preferred) {
       void performOpen(side, entry, preferred);
       return;
     }
-    const def = settings.defaultOpener;
+    const def = vault.defaultOpener;
     if (def && def !== '__ask__') {
       void performOpen(side, entry, def);
       return;
@@ -257,7 +256,7 @@ export function useSftpActions({
       if (remember) {
         const ext = getExt(openFileTarget.entry.name);
         if (ext) {
-          setSettings({ fileOpeners: { ...settings.fileOpeners, [ext]: openerId } });
+          setVault({ fileOpeners: { ...vault.fileOpeners, [ext]: openerId } });
         }
       }
     }

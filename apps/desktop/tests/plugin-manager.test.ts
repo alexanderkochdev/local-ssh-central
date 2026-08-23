@@ -38,6 +38,8 @@ function makeHost(overrides: Partial<Host> = {}): Host {
 function makeManager(dir: string, override?: Partial<PluginServices>): PluginManager {
   const base: PluginServices = {
     hosts: () => [],
+    getUserSettings: () => ({ language: 'de', theme: 'dark', terminalFontSize: 13, showDebugLog: false }),
+    getVaultSettings: () => ({ autoLockMinutes: 15, sftpConcurrency: 3, defaultOpener: 'default', fileOpeners: {} }),
     openTerminal: async () => ({ sessionId: 's' }),
     writeTerminal: async () => {},
     resizeTerminal: async () => {},
@@ -377,5 +379,26 @@ describe('PluginManager', () => {
     const res = await mgr.invokeIpc({ plugin: 'wpanel', channel: 'go', payload: {} });
     expect(res.ok).toBe(true);
     expect(opened).toEqual(['plugin://wpanel/ui/extra.html']);
+  });
+
+  it('api.settings.getAll verlangt die "settings"-Permission und liefert User+Vault', async () => {
+    await installPlugin(
+      's1',
+      `api.ipc.handle('go', async () => api.settings.getAll());`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    const denied = await mgr.invokeIpc({ plugin: 's1', channel: 'go', payload: {} });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toContain('Berechtigung');
+
+    await mgr.grantPermission('s1', 'settings');
+    const granted = await mgr.invokeIpc({ plugin: 's1', channel: 'go', payload: {} });
+    expect(granted.ok).toBe(true);
+    expect(granted.value).toMatchObject({
+      user: { language: 'de', theme: 'dark' },
+      vault: { autoLockMinutes: 15, sftpConcurrency: 3 },
+    });
   });
 });

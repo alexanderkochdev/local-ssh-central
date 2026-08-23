@@ -30,7 +30,7 @@ function parseHash(): Route {
 export default function App() {
   const status = useVaultStore((state) => state.status);
   const init = useVaultStore((state) => state.init);
-  const autoLockMinutes = useSettingsStore((s) => s.settings.autoLockMinutes);
+  const initSettings = useSettingsStore((state) => state.init);
   const [route] = useState<Route>(parseHash);
 
   // Auf Lock-/Auto-Lock-Events vom Main reagieren.
@@ -38,11 +38,10 @@ export default function App() {
     return init();
   }, [init]);
 
-  // Persistierte Auto-Lock-Einstellung beim Start (und bei Aenderung) an den Main syncen,
-  // damit sie nach einem Neustart tatsaechlich greift - der Main startet sonst mit 15-min-Default.
+  // Settings einmalig laden + auf Main-Pushes (z.B. nach Unlock) hoeren.
   useEffect(() => {
-    window.api.settings.setAutoLock(autoLockMinutes);
-  }, [autoLockMinutes]);
+    return initSettings();
+  }, [initSettings]);
 
   if (route?.kind === 'terminal') {
     return <TerminalWindow hostId={route.id} sessionId={route.sessionId} />;

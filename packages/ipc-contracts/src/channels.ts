@@ -33,9 +33,17 @@ export const IpcChannels = {
   sshListSessions: 'ssh:listSessions',
   sshEvent: 'ssh:event',
 
-  // Einstellungen (wirken im Main-Process)
+  // Einstellungen (Schema-getrieben: User geräteweit, Vault pro .kdbx)
+  settingsGet: 'settings:get',
+  settingsSet: 'settings:set',
+  settingsChanged: 'settings:changed',
+  // Bestehende Main-wirksame Kanäle (bis der Renderer vollständig migriert ist).
   settingsAutoLock: 'settings:autoLock',
   settingsSftpConcurrency: 'settings:sftpConcurrency',
+
+  // Native Dialoge (Ordner-/Datei-Picker fuer 'folder'/'file'-SettingDefinition)
+  dialogPickFolder: 'dialog:pickFolder',
+  dialogPickFile: 'dialog:pickFile',
 
   // Fenster-Verwaltung (neue Terminal-/SFTP-Fenster)
   windowOpen: 'window:open',

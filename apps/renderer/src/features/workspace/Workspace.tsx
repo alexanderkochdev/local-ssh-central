@@ -12,7 +12,8 @@ import LockIcon from '@mui/icons-material/Lock';
 import { HostsView } from '../hosts/HostsView.js';
 import { VaultView } from '../vault/VaultView.js';
 import { ChangePasswordDialog } from '../vault/ChangePasswordDialog.js';
-import { SettingsDialog } from '../settings/SettingsDialog.js';
+import { UserSettingsDialog } from '../settings/UserSettingsDialog.js';
+import { VaultSettingsDialog } from '../settings/VaultSettingsDialog.js';
 import { PluginsDialog } from '../plugins/PluginsDialog.js';
 import { PluginPanel } from '../plugins/PluginPanel.js';
 import { PluginDialogHost } from '../plugins/PluginDialogHost.js';
@@ -30,7 +31,8 @@ export function Workspace() {
   const [view, setView] = useState<string>('hosts');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [userSettingsOpen, setUserSettingsOpen] = useState(false);
+  const [vaultSettingsOpen, setVaultSettingsOpen] = useState(false);
   const [pluginsOpen, setPluginsOpen] = useState(false);
   const lock = useVaultStore((state) => state.lock);
   // WICHTIG: stabile Referenz selektieren und Tabs per useMemo ableiten - ein Selektor,
@@ -91,10 +93,18 @@ export function Workspace() {
         <MenuItem
           onClick={() => {
             setMenuAnchor(null);
-            setSettingsOpen(true);
+            setUserSettingsOpen(true);
           }}
         >
-          {t('settings.title')}
+          {t('settings.user.title')}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setMenuAnchor(null);
+            setVaultSettingsOpen(true);
+          }}
+        >
+          {t('settings.vault.title')}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -116,7 +126,8 @@ export function Workspace() {
 
       <Box sx={{ flex: 1, minHeight: 0 }}>{renderView()}</Box>
 
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <UserSettingsDialog open={userSettingsOpen} onClose={() => setUserSettingsOpen(false)} />
+      <VaultSettingsDialog open={vaultSettingsOpen} onClose={() => setVaultSettingsOpen(false)} />
       <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
       <PluginsDialog open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
       <PluginDialogHost />

@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IpcChannels, type PluginIpcPush, type SshCentralApi } from '@ssh-central/ipc-contracts';
+import {
+  IpcChannels,
+  type PluginIpcPush,
+  type SettingsChangedPayload,
+  type SettingsGetResult,
+  type SshCentralApi,
+  type UserSettingsValues,
+  type VaultSettingsValues,
+} from '@ssh-central/ipc-contracts';
 
 /**
  * Exponiert die typisierte `window.api` via contextBridge. Der Renderer erhaelt ausschliesslich
@@ -71,8 +79,23 @@ const api: SshCentralApi = {
     openSftp: (hostId) => ipcRenderer.send(IpcChannels.windowOpen, { kind: 'sftp', id: hostId }),
   },
   settings: {
+    getUser: async () => (await ipcRenderer.invoke(IpcChannels.settingsGet) as SettingsGetResult).user,
+    getVault: async () => (await ipcRenderer.invoke(IpcChannels.settingsGet) as SettingsGetResult).vault,
+    setUser: async (patch) =>
+      (await ipcRenderer.invoke(IpcChannels.settingsSet, { scope: 'user', patch })) as UserSettingsValues,
+    setVault: async (patch) =>
+      (await ipcRenderer.invoke(IpcChannels.settingsSet, { scope: 'vault', patch })) as VaultSettingsValues,
+    onChanged: (handler: (payload: SettingsChangedPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: SettingsChangedPayload) => handler(payload);
+      ipcRenderer.on(IpcChannels.settingsChanged, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.settingsChanged, listener);
+    },
     setAutoLock: (minutes) => ipcRenderer.send(IpcChannels.settingsAutoLock, minutes),
     setSftpConcurrency: (concurrency) => ipcRenderer.send(IpcChannels.settingsSftpConcurrency, concurrency),
+  },
+  dialog: {
+    pickFolder: () => ipcRenderer.invoke(IpcChannels.dialogPickFolder),
+    pickFile: () => ipcRenderer.invoke(IpcChannels.dialogPickFile),
   },
   plugins: {
     list: () => ipcRenderer.invoke(IpcChannels.pluginsList),

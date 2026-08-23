@@ -9,6 +9,14 @@ const VAULT_NAME = 'SSH Central';
 const MIN_MASTER_PASSWORD_LENGTH = 12;
 
 /**
+ * Dedizierte KDBX-Gruppe + Eintrag fuer die App-VaultSettings (nie als Passwort anzeigen).
+ * Hinweis: Der Name MUSS sich von der Root-Gruppe (VAULT_NAME = "SSH Central") unterscheiden,
+ * sonst wuerde listEntries faelschlich auch die Root-Gruppe ueberspringen.
+ */
+const APP_SETTINGS_GROUP = 'SSH Central App';
+const APP_SETTINGS_TITLE = 'Settings';
+
+/**
  * KeePass/KDBX-Vault fuer SSH Central.
  *
  * Sicherheits-Prinzipien:
@@ -115,6 +123,10 @@ export class KdbxVault {
     const db = this.requireDb();
     const entries: VaultEntry[] = [];
     for (const group of db.groups) {
+      // Die App-Settings-Gruppe ist KEIN Passwort-Eintrag und darf nicht in der Liste erscheinen.
+      if (group.name === APP_SETTINGS_GROUP) {
+        continue;
+      }
       for (const entry of group.entries) {
         entries.push(this.toEntry(entry));
       }
@@ -164,6 +176,51 @@ export class KdbxVault {
     return value === undefined ? undefined : typeof value === 'string' ? value : value.getText();
   }
 
+  // ------------------------------------------------------------------ App-Settings
+
+  /** Liest die App-VaultSettings (JSON) aus dem dedizierten KDBX-Eintrag. null, wenn keiner existiert. */
+  async readSettings(): Promise<Record<string, unknown> | null> {
+    const db = this.requireDb();
+    const group = this.findAppSettingsGroup(db);
+    const entry = group?.entries.find((e) => this.fieldText(e, 'Title') === APP_SETTINGS_TITLE);
+    if (!entry) {
+      return null;
+    }
+    const text = this.fieldText(entry, 'Notes');
+    if (!text) {
+      return null;
+    }
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Schreibt die App-VaultSettings (JSON) in den dedizierten KDBX-Eintrag und persistiert atomar. */
+  async writeSettings(values: Record<string, unknown>): Promise<void> {
+    const db = this.requireDb();
+    const group = this.getOrCreateAppGroup(db);
+    let entry = group.entries.find((e) => this.fieldText(e, 'Title') === APP_SETTINGS_TITLE);
+    if (!entry) {
+      entry = db.createEntry(group);
+      entry.fields.set('Title', kdbxweb.ProtectedValue.fromString(APP_SETTINGS_TITLE));
+    }
+    entry.fields.set('Notes', kdbxweb.ProtectedValue.fromString(JSON.stringify(values)));
+    entry.times.update();
+    await this.persist(db);
+  }
+
+  private findAppSettingsGroup(db: kdbxweb.Kdbx): kdbxweb.KdbxGroup | undefined {
+    return db.getDefaultGroup().groups.find((group) => group.name === APP_SETTINGS_GROUP);
+  }
+
+  private getOrCreateAppGroup(db: kdbxweb.Kdbx): kdbxweb.KdbxGroup {
+    return (
+      this.findAppSettingsGroup(db) ?? db.createGroup(db.getDefaultGroup(), APP_SETTINGS_GROUP)
+    );
+  }
+
   // ------------------------------------------------------------------ helpers
 
   private async readBytes(): Promise<ArrayBuffer> {
@@ -200,6 +257,12 @@ export class KdbxVault {
       throw new VaultError('Der Tresor ist nicht entsperrt.');
     }
     return this.db;
+  }
+
+  /** Liest ein Entry-Feld sicher (kdbxweb liefert `ProtectedValue | string`). */
+  private fieldText(entry: kdbxweb.KdbxEntry, name: string): string | undefined {
+    const value = entry.fields.get(name);
+    return value === undefined ? undefined : typeof value === 'string' ? value : value.getText();
   }
 
   private findEntry(db: kdbxweb.Kdbx, id: string): kdbxweb.KdbxEntry | undefined {

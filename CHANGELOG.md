@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.1.0] - 2026-08-22
+
+### Added
+- **Plugins: `api.settings.getAll()`** — Plugins koennen die App-Settings read-only abfragen
+  (neue Permission `'settings'`). Liefert `user` (geräteweit) + `vault` (pro .kdbx).
+- **Schema-getriebenes Settings-System** (völlig neu):
+  - Gemeinsame `SettingDefinition`/`SettingSection`-Schema + Sanitizer in `@ssh-central/ipc-contracts`
+    (Types: select, multiSelect, boolean, string, number, folder, file, credential, secret).
+  - Zwei getrennte Provider auf `SettingsProvider`-Basis: `UserSettings` (geräteweit,
+    `%APPDATA%/@ssh-local`) und `VaultSettings` (in der `.kdbx`, portabel, dedizierter
+    "SSH Central App/Settings"-Eintrag). Kein `localStorage` mehr im Renderer.
+  - Generische UI: `SettingComponent`/`SettingSectionComponent`/`SettingsRenderer` (Tree,
+    Label + Info-Hover + Input; Ordner-/Datei-Picker via nativer Electron-Dialoge).
+  - `UserSettingsDialog` auf dem Login-Screen + `VaultSettingsDialog` im Workspace-Menü
+    (3-Punkte-Menü: "User Settings" / "Vault Settings" statt eines einzelnen "Settings").
+  - Vault-Wirkungen (Auto-Lock, SFTP-Parallelitaet) werden beim Setzen/Unlock im Main angewandt.
+
 ## [1.0.1] - 2026-08-22
 
 ### Fixed

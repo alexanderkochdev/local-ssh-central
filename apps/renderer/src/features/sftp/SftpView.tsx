@@ -30,8 +30,9 @@ export function SftpView({ initialHostId }: SftpViewProps) {
   const { t } = useTranslation();
   const hosts = useHostsStore((s) => s.hosts);
   const loadHosts = useHostsStore((s) => s.load);
-  const settings = useSettingsStore((s) => s.settings);
-  const setSettings = useSettingsStore((s) => s.set);
+  const user = useSettingsStore((s) => s.user);
+  const vault = useSettingsStore((s) => s.vault);
+  const setVault = useSettingsStore((s) => s.setVault);
 
   const [hostId, setHostId] = useState<string>('');
   const [handle, setHandle] = useState<string | null>(null);
@@ -146,8 +147,8 @@ export function SftpView({ initialHostId }: SftpViewProps) {
     handleRef,
     hosts,
     hostId,
-    settings,
-    setSettings,
+    vault,
+    setVault,
     refreshLocal,
     refreshRemote,
     localCache,
@@ -259,7 +260,7 @@ export function SftpView({ initialHostId }: SftpViewProps) {
   if (!handle) {
     return (
       <>
-        {connecting && settings.showDebugLog && <DebugLog entries={entries} />}
+        {connecting && user.showDebugLog && <DebugLog entries={entries} />}
         <ConnectView
           t={t}
           hosts={hosts}
@@ -276,7 +277,7 @@ export function SftpView({ initialHostId }: SftpViewProps) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {(local.loading || remote.loading) && settings.showDebugLog && <DebugLog entries={entries} />}
+      {(local.loading || remote.loading) && user.showDebugLog && <DebugLog entries={entries} />}
       <Box sx={{ display: 'flex', gap: 1, p: 1, borderBottom: 1, borderColor: 'divider', alignItems: 'center', flexWrap: 'wrap' }}>
         <Typography variant="body2" color="success.main">
           {t('sftp.connected')}

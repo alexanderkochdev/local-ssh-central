@@ -123,4 +123,23 @@ describe('KdbxVault', () => {
     await vault.create('pw-1234567890');
     expect(vault.getSecret('does-not-exist', 'password')).toBeUndefined();
   });
+
+  it('liest/schreibt App-Settings portabel in der .kdbx (nicht als Passwort sichtbar)', async () => {
+    const vault = await makeVault();
+    await vault.create('pw-1234567890');
+
+    expect(await vault.readSettings()).toBeNull();
+    await vault.writeSettings({ autoLockMinutes: 60, sftpConcurrency: 5 });
+    expect(await vault.readSettings()).toEqual({ autoLockMinutes: 60, sftpConcurrency: 5 });
+
+    // App-Settings erscheinen NICHT als Passwort-Eintrag in der Liste.
+    expect(vault.listEntries()).toHaveLength(0);
+
+    // Persistiert ueber lock/unlock (portable Einheit).
+    await vault.changeMasterPassword('pw-1234567890', 'pw-0987654321');
+    vault.lock();
+    await new Promise((r) => setTimeout(r, 50));
+    await vault.unlock('pw-0987654321');
+    expect(await vault.readSettings()).toEqual({ autoLockMinutes: 60, sftpConcurrency: 5 });
+  });
 });
