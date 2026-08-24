@@ -1,7 +1,7 @@
 {
   "name": "@ssh-central/renderer",
   "version": "1.0.0",
-  "description": "React + Material UI Frontend (sandboxed Renderer) fuer SSH Central",
+  "description": "React + Material UI Frontend (sandboxed Renderer) für SSH Central",
   "license": "GPL-3.0-only",
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",
   "private": true,
@@ -11,6 +11,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "preview": "vite preview",
     "clean": "rimraf dist .vite"
   },
@@ -32,9 +33,14 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "jsdom": "^30.0.1",
     "rimraf": "^6.1.3",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",

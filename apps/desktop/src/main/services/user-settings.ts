@@ -12,8 +12,8 @@ import { SettingsProvider } from './settings-provider.js';
  * Geräteweite UserSettings (Theme, Sprache, Terminal, Debug).
  *
  * Gespeichert in `%APPDATA%/@ssh-local/user-settings.json` - AUSSERHALB des Vaults,
- * damit sie bereits auf dem Login-Screen verfuegbar sind (vor dem Unlock).
- * Schreiben ist atomar (tmp + rename), validiert ueber das gemeinsame Schema.
+ * damit sie bereits auf dem Login-Screen verfügbar sind (vor dem Unlock).
+ * Schreiben ist atomar (tmp + rename), validiert über das gemeinsame Schema.
  */
 export class UserSettings extends SettingsProvider<UserSettingsValues> {
   private readonly filePath: string;

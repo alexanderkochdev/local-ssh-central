@@ -10,7 +10,7 @@ interface SessionRecord {
 
 /**
  * Erzeugt und verwaltet interaktive Terminal-Sessions (ssh2 `shell`). Jede Session ist
- * unabhaengig und kann parallel zu beliebig vielen anderen laufen.
+ * unabhängig und kann parallel zu beliebig vielen anderen laufen.
  */
 export class SessionManager {
   private readonly sessions = new Map<string, SessionRecord>();

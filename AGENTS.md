@@ -54,7 +54,8 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 - Kern: `apps/desktop/src/main/plugin/` (`plugin-manager.ts` laedt Plugins aus `userData/plugins`,
   verdrahtet Hooks; `unzip.ts` entpackt ZIPs mit Zip-Slip-Schutz).
 - API (`register(api)`): `hooks.resolveConnectionConfig`, `events.on`, `tabs.register`,
-  `services.hosts.list`, `log`. Plugins sind **CommonJS**-Module.
+  `services.hosts.list`, `settings.getAll` (Permission `'settings'`), `log`. Plugins sind
+  **CommonJS**-Module. Vollständige Referenz: `docs/plugin-development.md`.
 - Renderer: `store/plugins-store.ts`, `features/plugins/PluginsDialog.tsx` + `PluginPanel.tsx`,
   Tab-Erweiterung in `Workspace.tsx`. IPC-Kanaele: `plugins:*` in `ipc-contracts`.
 
@@ -98,6 +99,20 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
   (TransferManager), `desktop` (Path-Guards, HostStore, Credential-Resolver), `renderer`
   (Sortier-/Filter-Pure-Funktionen). Reine Logik wird als exportierte Funktion getestet,
   um ohne Electron/React-Harness auszukommen.
+- **Coverage**: `pnpm test:coverage` (Turbo) erzeugt je Paket einen v8-Coverage-Bericht
+  (`text`/`html`/`json-summary` in `coverage/`) und erzwingt die **Thresholds aus den jeweiligen
+  `vitest.config.ts`** (No-Regression-Ratchet). Aktuell (235 Tests): **vault ~91%**, **ssh-core
+  ~96%** (connection- + session-manager mit ssh2-Client-Mock), **sftp ~90%** (sftp-engine 100%),
+  **desktop ~62%** (ssh-service 100%, vault-service 98%, vault-ipc/Unlock-Backoff 87%, openers
+  91%, app://- und plugin://-Protokoll inkl. Path-Traversal 86-87%, windows + session-windows
+  77-93%; verbleibend: dünne IPC-Registrierung `fs/hosts/ssh/sftp/plugins.ipc` + `index.ts`-Glue),
+  **renderer ~21%** (Stores/i18n 100%, useSftpActions/SFTP-Logik, FilePane 46%,
+  VaultGate-Login 46%, Settings-Komponenten per jsdom; verbleibend: reine MUI-Präsentations-
+  Views SftpView/HostsView/Terminal/Dialoge).
+  **Strategie (risikoorientiert, bewusst):** Sicherheits- und Geschäftslogik ist priorisiert
+  abgedeckt; die verbleibenden Lücken sind dünne Präsentation/Glue mit geringem Risiko-Zugewinn
+  bei hohem Harness-Aufwand und sind als Backlog in `docs/roadmap.md` verankert. Thresholds erst
+  anheben, wenn die Abdeckung real steigt.
 - **Ordner**: `src/` je Paket mit klarer Trennung (`src/main`, `src/preload` in Desktop).
 
 ## Commands (Root)
@@ -109,6 +124,7 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 | `pnpm build` | Alle Pakete + Apps bauen |
 | `pnpm package` | Installer bauen (Windows NSIS / Linux AppImage+deb) |
 | `pnpm test` | Vitest für alle Pakete |
+| `pnpm test:coverage` | Vitest mit v8-Coverage + Thresholds (No-Regression) |
 | `pnpm typecheck` | TypeScript-Prüfung aller Pakete |
 | `pnpm lint` | ESLint |
 | `pnpm format` | Prettier schreiben |
@@ -140,3 +156,6 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 6. **Security**: Eingaben validieren; Pfade mit Safe-Path-Guard prüfen; keine Hardcoded Secrets.
 7. **Keine Version-Bumps/Commits/Tags ohne expliziten User-Wunsch.**
 8. **Living Documents pflegen**: `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `.clinerules`.
+9. **OSS-Metadaten**: `CONTRIBUTING.md` (Beitragsregeln), `SECURITY.md` (verantwortungsvolle
+   Offenlegung), `CODE_OF_CONDUCT.md`, Issue-/PR-Templates unter `.github/` — bei Prozess- oder
+   Strukturänderungen mitziehen.

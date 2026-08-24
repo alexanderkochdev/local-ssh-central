@@ -2,13 +2,13 @@ import type { SettingDefinition, SettingValue } from '@ssh-central/ipc-contracts
 import { sanitizeSettings } from '@ssh-central/ipc-contracts';
 
 /**
- * Abstrakter SettingsProvider - der gemeinsame Vertrag fuer ALLE Settings-Speicher.
+ * Abstrakter SettingsProvider - der gemeinsame Vertrag für ALLE Settings-Speicher.
  *
  * Konkrete Implementierungen:
  * - `UserSettings`  -> geräteweit in %APPDATA%/@ssh-local (JSON, atomar)
  * - `VaultSettings` -> pro Vault in der .kdbx (portabel)
  *
- * Beide teilen dieselbe Validierungs-/Clamp-Logik ueber die `SettingDefinition`s
+ * Beide teilen dieselbe Validierungs-/Clamp-Logik über die `SettingDefinition`s
  * und den gemeinsamen `sanitizeSettings`-Sanitizer. Dadurch ist das Verhalten
  * deterministisch und identisch, egal wo persistiert wird.
  */

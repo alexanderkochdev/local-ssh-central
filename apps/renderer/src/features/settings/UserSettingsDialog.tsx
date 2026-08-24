@@ -14,7 +14,7 @@ interface UserSettingsDialogProps {
 }
 
 /**
- * Geräteweite Einstellungen (Theme, Sprache, Terminal, Debug) - verfuegbar schon auf dem
+ * Geräteweite Einstellungen (Theme, Sprache, Terminal, Debug) - verfügbar schon auf dem
  * Login-Screen. Rendert den USER_SETTINGS_SECTIONS-Baum ueber die generische SettingsRenderer.
  */
 export function UserSettingsDialog({ open, onClose }: UserSettingsDialogProps) {

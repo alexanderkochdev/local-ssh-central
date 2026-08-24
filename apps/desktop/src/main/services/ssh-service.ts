@@ -9,8 +9,8 @@ import type { SessionInfo, SshEvent } from '@ssh-central/ipc-contracts';
 export type SshEventSink = (event: SshEvent) => void;
 
 /**
- * Orchestriert SSH-Sessions im Main-Process: baut Verbindungen auf, oeffnet Terminal-
- * Kanaele und streamt Daten/Status an den Renderer. Beliebig viele parallele Sessions.
+ * Orchestriert SSH-Sessions im Main-Process: baut Verbindungen auf, öffnet Terminal-
+ * Kanäle und streamt Daten/Status an den Renderer. Beliebig viele parallele Sessions.
  */
 export class SshService {
   private readonly connections = new ConnectionManager();
@@ -85,7 +85,7 @@ export class SshService {
     return [...this.infos.values()];
   }
 
-  /** Schliesst alle Sessions und Verbindungen (App-Quit / Vault-Lock). */
+  /** Schließt alle Sessions und Verbindungen (App-Quit / Vault-Lock). */
   async dispose(): Promise<void> {
     await this.sessions.closeAll();
   }

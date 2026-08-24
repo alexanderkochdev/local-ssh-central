@@ -38,7 +38,7 @@ const LINUX_OPENERS: Array<() => Opener | null> = [
   () => ({ id: 'kate', name: 'Kate', command: 'kate' }),
 ];
 
-/** Erkennt installierte Programme zum Oeffnen von Dateien. */
+/** Erkennt installierte Programme zum Öffnen von Dateien. */
 export function detectOpeners(): OpenerInfo[] {
   const list = process.platform === 'win32' ? WIN_OPENERS : LINUX_OPENERS;
   return list
@@ -51,7 +51,7 @@ function findOpener(id: string): Opener | undefined {
   return detectOpeners().find((o) => o.id === id) as Opener | undefined;
 }
 
-/** Oeffnet eine Datei mit dem angegebenen Programm (oder Systemstandard). */
+/** Öffnet eine Datei mit dem angegebenen Programm (oder Systemstandard). */
 export async function openWith(filePath: string, openerId: string): Promise<void> {
   if (openerId === 'default') {
     const error = await shell.openPath(filePath);
@@ -72,7 +72,7 @@ export async function openWith(filePath: string, openerId: string): Promise<void
 }
 
 /**
- * Oeffnet einen Ordner als VSCode-Workspace. `remote` oeffnet via VSCode Remote-SSH
+ * Öffnet einen Ordner als VSCode-Workspace. `remote` öffnet via VSCode Remote-SSH
  * (`vscode-remote://ssh-remote+<host>/<pfad>`), sonst lokal.
  */
 export async function openInVscode(

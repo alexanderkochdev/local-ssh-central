@@ -13,13 +13,13 @@ import type {
 import type { AppServices } from './types.js';
 
 // Brute-Force-Schutz beim Entsperren: nach N Fehlversuchen greift eine (exponentiell wachsende)
-// Sperrzeit. Argon2 verlangsamt Offline-Brueforce, dieser Throttle stoppt Online-Rateing ueber die UI.
+// Sperrzeit. Argon2 verlangsamt Offline-Brute-Force, dieser Throttle stoppt Online-Rateing über die UI.
 const MAX_FAILED_ATTEMPTS = 5;
 const BASE_BACKOFF_MS = 2_000;
 let failedAttempts = 0;
 let lockUntil = 0;
 
-/** Registriert die Vault-Ipc-Handler (Tresor + Eintraege + SSH-Keychain). */
+/** Registriert die Vault-Ipc-Handler (Tresor + Einträge + SSH-Keychain). */
 export function registerVaultIpc(
   services: AppServices,
   onLock: () => void,

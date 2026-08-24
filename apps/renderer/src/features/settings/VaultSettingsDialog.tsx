@@ -14,7 +14,7 @@ interface VaultSettingsDialogProps {
 }
 
 /**
- * Pro-Vault-Einstellungen (Auto-Lock, SFTP-Parallelitaet, Datei-Openers) - werden in der
+ * Pro-Vault-Einstellungen (Auto-Lock, SFTP-Parallelität, Datei-Openers) - werden in der
  * .kdbx gespeichert (portabel). Rendert den VAULT_SETTINGS_SECTIONS-Baum generisch.
  */
 export function VaultSettingsDialog({ open, onClose }: VaultSettingsDialogProps) {

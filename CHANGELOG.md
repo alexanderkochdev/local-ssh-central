@@ -4,6 +4,40 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.2.0] - 2026-08-24
+
+### Added
+- **Hardware-Infoleiste (SystemBar)** — untere Leiste im Hauptfenster UND im Login-Screen:
+  - Zeigt den **eigenen** Verbrauch des Programms: CPU (App), RAM (App-RSS), Disk (App-Datenverzeichnis)
+  - **Netzwerk Up/Down** in KB/s (systemweit, Delta-basiert über `netstat`/`/proc/net/dev`)
+  - **Latenz** zum konfigurierbaren Ping-Ziel (alle 5 s, via OS-`ping`)
+  - Neu über IPC `system:getStats`; neue User-Settings `pingTarget` (Standard `8.8.8.8`) und
+    `showSystemBar` (Standard an).
+- **OSS-Metadaten** für ein offenes Repo: `CONTRIBUTING.md`, `SECURITY.md`,
+  `CODE_OF_CONDUCT.md`, Issue-/PR-Templates (`.github/`).
+- **README**: Status-Badges (Version, License, CI, Plattform, Stars/Forks/Issues/PRs/
+  Contributors/Last-Commit) + Screenshot der vier Fenster.
+- **Coverage-Infrastruktur**: v8-Coverage je Paket mit Thresholds (No-Regression-Ratchet),
+  `pnpm test:coverage` (Root + Pakete + CI).
+- **Test-Suite auf 241 Tests ausgebaut** (von 70+): ssh-core (connection-/session-manager mit
+  ssh2-Mock), sftp (sftp-engine 100%), Desktop (Services, Protokolle inkl. Path-Traversal,
+  IPC/Unlock-Backoff, Fensterverwaltung), Renderer (Stores, i18n-Parität, SFTP-Logik, VaultGate,
+  FilePane, SystemBar).
+
+### Fixed
+- **SFTP-Drag&Drop**: Chromium/Electron verwarf den Custom-MIME-Typ im `dataTransfer`;
+  jetzt wird zusätzlich `text/plain` als Träger gesetzt und gelesen.
+- **Host-Referenz-Wechsel**: Beim Auswählen einer bestehenden Vault-Passwort-Referenz wird
+  der **Username** jetzt automatisch aus dem Eintrag übernommen (vorher blieb der alte
+  Login-User aktiv).
+
+### Changed
+- **CI**: Test-Schritt erzwingt nun die Coverage-Thresholds (`pnpm test:coverage` statt `pnpm test`).
+- **Dokumentation überarbeitet**: `AGENTS.md`, `ARCHITECTURE.md` (IPC-Tabelle + Dateistruktur),
+  `docs/roadmap.md` gekürzt, `docs/mvp-scope.md` entfernt, `docs/plugins.md` +
+  `docs/plugin-development.md` aktualisiert.
+- **Umlaute**: Deutsche Texte in Doku und Code-Kommentaren auf korrekte ä/ö/ü/ß normalisiert.
+
 ## [1.1.0] - 2026-08-22
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "local-ssh-central",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "SSH Central - a fast, secure, open-source SSH client & SFTP file manager for Windows and Linux. Electron + React + Material UI monorepo.",
   "author": {
@@ -38,6 +38,7 @@
     "build:renderer": "pnpm --filter @ssh-central/renderer build",
     "package": "pnpm --filter @ssh-central/desktop package",
     "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "turbo run typecheck",

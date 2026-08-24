@@ -17,11 +17,11 @@ export interface VaultSettingsStorage {
 }
 
 /**
- * Pro-Vault-Settings (Auto-Lock, SFTP-Parallelitaet, Datei-Openers).
+ * Pro-Vault-Settings (Auto-Lock, SFTP-Parallelität, Datei-Openers).
  *
- * Liegen IN der .kdbx - jede Vault-Datei ist damit eine vollstaendige, portable Einheit.
- * Die eigentliche KDBX-Persistenz ist ueber `VaultSettingsStorage` injiziert; diese
- * Klasse kuemmert sich nur um Validierung, Defaults und den In-Memory-Stand.
+ * Liegen IN der .kdbx - jede Vault-Datei ist damit eine vollständige, portable Einheit.
+ * Die eigentliche KDBX-Persistenz ist über `VaultSettingsStorage` injiziert; diese
+ * Klasse kümmert sich nur um Validierung, Defaults und den In-Memory-Stand.
  */
 export class VaultSettings extends SettingsProvider<VaultSettingsValues> {
   constructor(private readonly storage: VaultSettingsStorage) {

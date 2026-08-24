@@ -7,13 +7,25 @@ komplett lokal, offen und unter deiner Kontrolle. Unbegrenzt viele SSH-Hosts, pa
 Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht — verschlüsselt
 über ein KeePass-kompatibles (KDBX) Vault.
 
+[![Version](https://img.shields.io/github/package-json/v/alexanderkochdev/local-ssh-central)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
+[![CI Build](https://github.com/alexanderkochdev/local-ssh-central/actions/workflows/build.yml/badge.svg)](https://github.com/alexanderkochdev/local-ssh-central/actions/workflows/build.yml)
+![Plattform](https://img.shields.io/badge/Plattform-Windows%20%7C%20Linux-blue)
+
+[![Stars](https://img.shields.io/github/stars/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/stargazers)
+[![Forks](https://img.shields.io/github/forks/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/forks)
+[![Issues](https://img.shields.io/github/issues/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/pulls)
+[![Contributors](https://img.shields.io/github/contributors/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/graphs/contributors)
+[![Last Commit](https://img.shields.io/github/last-commit/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/commits/develop)
+
 | | |
 |---|---|
 | **Autor** | Alexander Koch — https://www.alexanderkoch.dev/ |
 | **Lizenz** | [GPL-3.0](LICENSE) (OSI Open Source, Copyleft) |
 | **Stack** | Electron · React · Material UI · TypeScript · pnpm + Turborepo |
 | **Plattformen** | Windows 10/11 · Linux (AppImage/deb) |
-| **Status** | **v1.0.0** — Open-Source-Release (GPL-3.0) |
+| **Status** | **v1.2.0** — Open-Source-Release (GPL-3.0) |
 
 ---
 
@@ -25,22 +37,35 @@ KeePass-kompatiblen Vault.
 
 ---
 
-## Features (Vision)
+## Features
 
-- **Terminal** — Parallele SSH-Sessions mit xterm.js (WebGL-beschleunigt), Split-Views, Tabs.
-- **Host-Manager** — Unbegrenzt viele Hosts, Gruppen, Tags; schnelle Suche & Virtualisierung.
-- **SFTP File Manager** — Side-by-Side-Ansicht (lokal ↔ remote), Drag & Drop, Queue mit
-  konfigurierbarer Parallelität, Progress-Anzeige, Resume.
 - **Sicherer Tresor (KeePass/KDBX)** — SSH-Keys und Benutzername/Passwort verschlüsselt in
-  einer `.kdbx`-Datei, entsperrbar mit einem selbst gewählten Master-Passwort (Argon2 KDF).
-  Kompatibel mit KeePassXC. Auto-Lock nach Inaktivität.
-- **Plugins** — ZIP-installierbare Plugins (UI, IPC, Secrets, Persistenz, Berechtigungen),
-  entwickelt mit dem [Plugin-SDK](docs/plugin-development.md) (`@ssh-central/plugin-sdk`).
+  einer `.kdbx`-Datei, entsperrbar mit einem selbst gewählten Master-Passwort (Argon2id KDF).
+  Kompatibel mit KeePassXC. Auto-Lock nach Inaktivität, Master-Passwort-Wechsel.
+- **Host-Manager** — Unbegrenzt viele Hosts, Gruppen, Tags; schnelle Suche, Filter &
+  Sortierung; Passwort- oder Key-Auth (Secrets referenzieren den Vault, nie Klartext).
+- **Terminal** — Parallele SSH-Sessions mit xterm.js (WebGL-beschleunigt), Tabs, Reconnect.
+- **SFTP File Manager** — Side-by-Side-Ansicht (lokal ↔ remote), Drag & Drop, Transfer-Queue
+  mit konfigurierbarer Parallelität, Progress, Abbrechen; Dateien mit beliebigen Programmen öffnen.
+- **Schema-getriebenes Settings-System** — `UserSettings` (geräteweit) + `VaultSettings`
+  (pro `.kdbx`, portabel), rendern über generische UI-Bausteine.
+- **Plugins** — ZIP-installierbare Plugins (UI, IPC, Dialoge, Secrets, Persistenz,
+  Berechtigungen, Host-Fähigkeiten), entwickelt mit dem
+  [Plugin-SDK](docs/plugin-development.md) (`@ssh-central/plugin-sdk`).
+- **i18n** — Vollständige DE/EN-Unterstützung.
 - **Performance** — Streaming über `MessageChannel`, virtualisierte Listen, native Module,
   ressourcenschonender Main-Process.
 
-Siehe [docs/mvp-scope.md](docs/mvp-scope.md) für den MVP-Umfang und
-[docs/roadmap.md](docs/roadmap.md) für die Roadmap zur 1.0.0.
+Siehe [docs/roadmap.md](docs/roadmap.md) für die Roadmap und [docs/security.md](docs/security.md)
+für das Security-Design.
+
+---
+
+## Screenshots
+
+Vier Fenster im Einsatz: Hauptfenster, SFTP-Dateimanager und zwei parallele Terminal-Sessions.
+
+![SSH Central – Hauptfenster, SFTP und Terminals](ssh-central-screenshot.png)
 
 ---
 
@@ -59,7 +84,7 @@ local-ssh-central/
 │   ├── plugin-sdk/       # SDK für Plugins (typisierte API, definePlugin, CLI) — auf npm
 │   └── ui/               # Geteilte React-Komponenten & Theme
 ├── examples/             # Beispiel-Plugins
-├── docs/                 # MVP-Scope, Roadmap, Security-Design
+├── docs/                 # Roadmap, Plugin-Entwicklung, Security-Design
 └── package.json          # pnpm + Turborepo Root
 ```
 
@@ -96,14 +121,19 @@ Details: [docs/roadmap.md](docs/roadmap.md#git-workflow)
 
 Beiträge sind willkommen. Bitte:
 
-1. Conventional Commits (`feat:`, `fix:`, `refactor:`, …) verwenden.
-2. Alle Änderungen an `CHANGELOG.md`, `AGENTS.md` & `ARCHITECTURE.md` spiegeln.
-3. Keine Secrets/`.kdbx`-Dateien committen — siehe `.gitignore`.
+1. [CONTRIBUTING.md](CONTRIBUTING.md) lesen (Branching, Commits, Tests, PR-Prozess).
+2. Conventional Commits (`feat:`, `fix:`, `refactor:`, …) verwenden.
+3. `pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build` grün halten
+   (inkl. Coverage-Thresholds, siehe [CONTRIBUTING.md](CONTRIBUTING.md)).
+4. Alle Änderungen an `CHANGELOG.md`, `AGENTS.md` & `ARCHITECTURE.md` spiegeln.
+5. Keine Secrets/`.kdbx`-Dateien committen — siehe `.gitignore`.
+
+Verhaltenskodex: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Sicherheit
 
-Melde Sicherheitslücken nicht öffentlich. Kontakt: siehe Author-URL.
-Security-Design: [docs/security.md](docs/security.md)
+Melde Sicherheitslücken nicht öffentlich — siehe [SECURITY.md](SECURITY.md)
+(verantwortungsvolle Offenlegung). Security-Design: [docs/security.md](docs/security.md).
 
 ---
 

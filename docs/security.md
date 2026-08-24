@@ -25,7 +25,7 @@ Private Keys) unter Windows und Linux, entschlüsselt mit einem vom User gewähl
   Standard-Parameter stammen aus kdbxweb (Memory-heavy Defaults); Werte sind konfigurierbar.
 - **Verschlüsselung**: AES-256 (KDBX4-Default) oder ChaCha20.
 - **Brute-Force-Throttle**: Nach 5 Fehlversuchen beim Entsperren greift ein exponentiell wachsender
-  Backoff im Main-Process (`vault.ipc.ts`); explizites Sperren setzt den Zaehler zurueck.
+  Backoff im Main-Process; explizites Sperren setzt den Zaehler zurueck.
 - **Speicherort**: `app.getPath('userData')/vault.kdbx`. Optionale Backup-Kopie mit
   aussagekräftiger Endung `.bak`.
 - **In-Memory-Lebenszyklus**:
@@ -59,15 +59,18 @@ Private Keys) unter Windows und Linux, entschlüsselt mit einem vom User gewähl
 - Vault-Entschlüsselung läuft im Main-Process; lange KDF-Berechnungen werden nicht blockierend
   ausgeführt (Worker), damit die UI flüssig bleibt — ohne Secrets an den Renderer zu geben.
 
-## Checkliste vor Release 1.0.0
+## Security-Checkliste (Stand v1.1.0)
 
 - [x] CSP aktiv und getestet
-- [x] `kdbxweb` gepinnt; verwundbare transitive Dep (`@xmldom/xmldom`) per pnpm-Override auf 0.8.13+ angehoben; Argon2-Defaults auditiert
-- [ ] Auto-Lock getestet (Timer feuert, Speicher geleert)
+- [x] `kdbxweb` gepinnt; verwundbare transitive Dep (`@xmldom/xmldom`) per pnpm-Override auf 0.8.13+ angehoben; Argon2id-Defaults auditiert
+- [x] Auto-Lock getestet (Timer feuert, Speicher geleert; persistierte Einstellung greift nach Neustart)
 - [x] Kein Secret in Logs/Fehlerberichten
 - [x] TOFU-Host-Key-Verifizierung implementiert (Fingerprint persistieren + Prüfung erzwingen)
 - [x] Unlock-Brute-Force-Throttle (exponentieller Backoff)
 - [x] `pnpm audit --prod` ohne Findings (Stand nach Override)
 - [x] Security-Logik automatisiert getestet (Vitest): TOFU `verifyHostKey`, Path-Guards
   (`assertSafePath`/`assertNotProtected`), Credential-Resolver (Secrets nur aus Vault),
-  Keychain (Fingerprints/Public-Key-Format), HostStore-`setFingerprint` (nur beim 1. Mal)
+  Keychain (Fingerprints/Public-Key-Format), HostStore-`setFingerprint` (nur beim 1. Mal),
+  Settings-Provider (Atomik, Clamp, Defaults bei beschädigter Datei)
+- [x] **VaultSettings liegen in der `.kdbx`** (dedizierter "SSH Central App/Settings"-Eintrag,
+  portabel) und erscheinen **nicht** als Passwort-Eintrag in der Liste

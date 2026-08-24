@@ -6,8 +6,8 @@ import { normalize, join, isAbsolute, sep, extname } from 'node:path';
 const SCHEME = 'app';
 const HOST = 'bundle';
 
-// Strenge CSP fuer die gebaute App. Wird NUR in Produktion gesetzt (hier im
-// Protocol-Handler); im Dev-Modus serviert Vite ueber http ohne CSP, damit
+// Strenge CSP für die gebaute App. Wird NUR in Produktion gesetzt (hier im
+// Protocol-Handler); im Dev-Modus serviert Vite über http ohne CSP, damit
 // Hot Reload / Fast Refresh (unsafe-eval) funktioniert.
 const CSP = [
   "default-src 'self'",
@@ -33,7 +33,7 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 /**
- * Registriert die Privilegien fuer das custom `app://`-Schema.
+ * Registriert die Privilegien für das custom `app://`-Schema.
  * MUSS vor `app.whenReady()` aufgerufen werden.
  *
  * In manchen electron-vite-/Electron-Kontexten ist `electron.protocol` beim fruehen
@@ -59,12 +59,12 @@ export function registerAppSchemePrivileges(): void {
 }
 
 /**
- * Serviert die gebauten Renderer-Dateien ueber `app://bundle/...`.
+ * Serviert die gebauten Renderer-Dateien über `app://bundle/...`.
  *
- * Grund: Vite baut ES-Module (`<script type="module">`), die ueber `file://`
- * wegen CORS/opaque-origin NICHT geladen werden koennen. Ein custom-Schema
- * loest das. Die Dateien werden per `fs.readFile` gelesen (asar-bewusst),
- * statt via `net.fetch` auf eine file://-URL (die asar nicht aufloest).
+ * Grund: Vite baut ES-Module (`<script type="module">`), die über `file://`
+ * wegen CORS/opaque-origin NICHT geladen werden können. Ein custom-Schema
+ * löst das. Die Dateien werden per `fs.readFile` gelesen (asar-bewusst),
+ * statt via `net.fetch` auf eine file://-URL (die asar nicht auflöst).
  */
 export function registerAppProtocol(rendererDir: string): void {
   if (!protocol || typeof protocol.handle !== 'function') {

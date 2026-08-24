@@ -5,8 +5,8 @@ import { dirname, resolve, sep } from 'node:path';
 
 /**
  * Entpackt eine ZIP-Datei sicher in das Zielverzeichnis (Zip-Slip-Schutz):
- * Entries, die ausserhalb des Zielverzeichnisses landen wuerden (Path Traversal),
- * werden uebersprungen. Liefert die absoluten Pfade der geschriebenen Dateien.
+ * Entries, die außerhalb des Zielverzeichnisses landen würden (Path Traversal),
+ * werden übersprungen. Liefert die absoluten Pfade der geschriebenen Dateien.
  */
 export async function extractZip(zipPath: string, targetDir: string): Promise<string[]> {
   const zip = await unzipper.Open.file(zipPath);

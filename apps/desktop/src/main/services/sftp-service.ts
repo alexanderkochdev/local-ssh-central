@@ -27,17 +27,17 @@ interface EditSession {
 
 /**
  * Verwaltet SFTP-Sessions und Transfers. Pro Host wird eine eigene SFTP-Verbindung
- * geoeffnet; Transfers laufen mit begrenzter Parallelitaet ueber die TransferManager-Queue.
+ * geöffnet; Transfers laufen mit begrenzter Parallelität über die TransferManager-Queue.
  */
 export class SftpService {
   private readonly connections = new ConnectionManager();
   private readonly handles = new Map<string, ManagedSftp>();
   private concurrency = 3;
 
-  /** Geloeschte Remote-Dateien (Temp->Remote) fuer Auto-Rueckupload beim Speichern. */
+  /** Gelöschte Remote-Dateien (Temp->Remote) für Auto-Rückupload beim Speichern. */
   private readonly editSessions = new Map<string, EditSession>();
 
-  /** Setzt die maximale Anzahl paralleler Transfers fuer NEUE SFTP-Sessions. */
+  /** Setzt die maximale Anzahl paralleler Transfers für NEUE SFTP-Sessions. */
   setConcurrency(n: number): void {
     this.concurrency = n;
   }
@@ -62,7 +62,7 @@ export class SftpService {
     }
 
     // Startverzeichnis: Home des angemeldeten Users (viele Server erlauben kein "/"-Listing).
-    // Fallback "/", wenn realpath fehlschlaegt - darf das Oeffnen nicht blockieren.
+    // Fallback "/", wenn realpath fehlschlägt - darf das Öffnen nicht blockieren.
     const cwd = await new Promise<string>((resolve) => {
       sftp.realpath('.', (err, path) => resolve(err || !path ? '/' : path));
     });
@@ -115,7 +115,7 @@ export class SftpService {
     }
   }
 
-  /** Schliesst eine einzelne SFTP-Session (z.B. wenn das SFTP-Fenster geschlossen wird). */
+  /** Schließt eine einzelne SFTP-Session (z.B. wenn das SFTP-Fenster geschlossen wird). */
   close(handle: string): void {
     this.stopEditSessions(handle);
     const managed = this.handles.get(handle);
@@ -127,14 +127,14 @@ export class SftpService {
     this.handles.delete(handle);
   }
 
-  /** Laedt eine Remote-Datei in einen Temp-Ordner, oeffnet sie und laedt bei Speicherung zurueck. */
+  /** Lädt eine Remote-Datei in einen Temp-Ordner, öffnet sie und lädt bei Speicherung zurück. */
   async openRemoteFile(handle: string, remotePath: string, openerId: string): Promise<void> {    const managed = this.require(handle);
     const tempDir = app.getPath('temp');
     const name = path.basename(remotePath);
     const tempPath = path.join(tempDir, `sshcentral-${randomUUID()}-${name}`);
     await managed.engine.fastGet(remotePath, tempPath);
 
-    // Temp-Datei ueberwachen -> bei Speicherung automatisch auf den Server zurueckladen.
+    // Temp-Datei überwachen -> bei Speicherung automatisch auf den Server zurückladen.
     const session: EditSession = { remotePath, handle, timer: null, suppress: false, watcher: null };
     this.editSessions.set(tempPath, session);
     try {
@@ -193,7 +193,7 @@ export class SftpService {
     }
   }
 
-  /** Schliesst alle SFTP-Sessions (App-Quit / Vault-Lock). */
+  /** Schließt alle SFTP-Sessions (App-Quit / Vault-Lock). */
   async dispose(): Promise<void> {
     for (const session of this.editSessions.values()) {
       if (session.timer) {

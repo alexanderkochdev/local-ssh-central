@@ -3,11 +3,11 @@ import type { KdbxVault } from '@ssh-central/vault';
 import type { VaultSettingsStorage } from './vault-settings.js';
 
 /**
- * KDBX-gestuetzte VaultSettings-Persistenz.
+ * KDBX-gestützte VaultSettings-Persistenz.
  *
- * Liest/schreibt die App-VaultSettings ueber `KdbxVault.readSettings/writeSettings`
+ * Liest/schreibt die App-VaultSettings über `KdbxVault.readSettings/writeSettings`
  * (dedizierter "SSH Central/Settings"-Eintrag in der .kdbx). Jede Vault-Datei ist damit
- * eine vollstaendige, portable Einheit - die Settings reisen mit dem Vault.
+ * eine vollständige, portable Einheit - die Settings reisen mit dem Vault.
  *
  * Hinweis: Erfordert einen entsperrten Vault (KdbxVault wirft sonst VaultError).
  */

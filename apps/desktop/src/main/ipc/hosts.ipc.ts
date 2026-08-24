@@ -11,7 +11,7 @@ import type { ResolvedHostInput } from '../services/host-store.js';
 /**
  * Registriert die Host-Ipc-Handler. Secrets werden hier im Main-Process aus den
  * transienten `request.secrets` in den (entsperrten) Vault geschrieben; hosts.json
- * enthaelt nur Referenzen, nie Klartext.
+ * enthält nur Referenzen, nie Klartext.
  */
 export function registerHostsIpc(services: AppServices): void {
   ipcMain.handle(IpcChannels.hostsList, () => services.hosts.list());
@@ -26,7 +26,7 @@ export function registerHostsIpc(services: AppServices): void {
     const existing = request.host.id ? services.hosts.getById(request.host.id) : undefined;
     const refs: HostSecretRefs = { ...existing?.secrets };
 
-    // Direkte Referenzen (aus der Keychain gewaehlte/erzeugte Eintraege) uebernehmen.
+    // Direkte Referenzen (aus der Keychain gewählte/erzeugte Einträge) übernehmen.
     if (secrets.keyRef) {
       refs.keyRef = secrets.keyRef;
     }
@@ -34,7 +34,7 @@ export function registerHostsIpc(services: AppServices): void {
       refs.passwordRef = secrets.passwordRef;
     }
 
-    // Neue/geaenderte Passwort-Secrets in den Vault schreiben.
+    // Neue/geänderte Passwort-Secrets in den Vault schreiben.
     if (request.host.authMethod === 'password' && secrets.password) {
       const fields = {
         title: `${request.host.name} · Passwort`,
@@ -48,7 +48,7 @@ export function registerHostsIpc(services: AppServices): void {
       }
     }
 
-    // Neue/geaenderte Key-Secrets in den Vault schreiben.
+    // Neue/geänderte Key-Secrets in den Vault schreiben.
     if (request.host.authMethod === 'key' && secrets.privateKey) {
       const fields = {
         title: `${request.host.name} · SSH Key`,

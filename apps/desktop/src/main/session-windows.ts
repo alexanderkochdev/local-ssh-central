@@ -6,7 +6,7 @@ import type { AppServices } from './ipc/types.js';
 type SessionWindowKind = 'terminal' | 'sftp';
 
 /**
- * Oeffnet unabhaengige BrowserWindows fuer Terminal-/SFTP-Sessions.
+ * Öffnet unabhängige BrowserWindows für Terminal-/SFTP-Sessions.
  * Beliebig viele Sessions gleichzeitig (jeweils eigenes Fenster).
  * Sendet Events an alle offenen Session-Fenster (Broadcast).
  */
@@ -63,7 +63,7 @@ export class SessionWindowManager {
     return key;
   }
 
-  /** Oeffnet ein Terminal-Fenster fuer eine bereits erzeugte Session. Beim Schliessen
+  /** Öffnet ein Terminal-Fenster für eine bereits erzeugte Session. Beim Schließen
    *  des Fensters wird die Session sauber beendet (feuert ssh:event/sessionClosed). */
   openTerminalWindow(hostId: string, sessionId: string): string {
     const key = this.open('terminal', hostId, sessionId);
@@ -74,12 +74,12 @@ export class SessionWindowManager {
     return key;
   }
 
-  /** Oeffnet ein SFTP-Fenster (Dateimanager) fuer den Host. */
+  /** Öffnet ein SFTP-Fenster (Dateimanager) für den Host. */
   openSftpWindow(hostId: string): string {
     return this.open('sftp', hostId);
   }
 
-  /** Oeffnet ein generisches Plugin-Panel-Fenster (z.B. plugin://-UI) und liefert die ID. */
+  /** Öffnet ein generisches Plugin-Panel-Fenster (z.B. plugin://-UI) und liefert die ID. */
   openPanel(url: string, opts?: { title?: string; width?: number; height?: number }): string {
     const id = `panel:${Date.now()}`;
     const win = new BrowserWindow({
@@ -99,7 +99,7 @@ export class SessionWindowManager {
     return id;
   }
 
-  /** Schliesst ein zuvor geoeffnetes Fenster (Panel, Terminal oder SFTP) per ID. */
+  /** Schließt ein zuvor geöffnetes Fenster (Panel, Terminal oder SFTP) per ID. */
   closeWindow(id: string): void {
     const win = this.windows.get(id);
     if (win && !win.isDestroyed()) {
@@ -107,7 +107,7 @@ export class SessionWindowManager {
     }
   }
 
-  /** Schliesst ein zuvor geoeffnetes Plugin-Panel-Fenster. */
+  /** Schließt ein zuvor geöffnetes Plugin-Panel-Fenster. */
   closePanel(id: string): void {
     this.closeWindow(id);
   }

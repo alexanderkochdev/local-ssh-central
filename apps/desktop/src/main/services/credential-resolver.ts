@@ -3,9 +3,9 @@ import type { HostConnectionConfig } from '@ssh-central/ssh-core';
 import type { KdbxVault } from '@ssh-central/vault';
 
 /**
- * Loest die zu einer Host-Metadaten-Referenz gehoerigen Secrets aus dem (entsperrten)
- * Vault auf und baut daraus eine ssh2-Verbindungskonfiguration. Laeuft ausschliesslich
- * im Main-Process; die Konfiguration verlaeuft NIE ueber die IPC an den Renderer.
+ * Löst die zu einer Host-Metadaten-Referenz gehörigen Secrets aus dem (entsperrten)
+ * Vault auf und baut daraus eine ssh2-Verbindungskonfiguration. Läuft ausschließlich
+ * im Main-Process; die Konfiguration verläuft NIE über die IPC an den Renderer.
  */
 export function resolveConnectionConfig(host: Host, vault: KdbxVault): HostConnectionConfig {
   const config: HostConnectionConfig = {

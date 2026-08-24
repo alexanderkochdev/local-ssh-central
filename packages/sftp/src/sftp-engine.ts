@@ -3,7 +3,7 @@ import type { SftpEntry } from '@ssh-central/ipc-contracts';
 
 /**
  * Kapselt eine einzelne SFTP-Session (ssh2). Bietet Verzeichnis- und Dateioperationen.
- * Laeuft ausschliesslich im Main-Process.
+ * Läuft ausschließlich im Main-Process.
  */
 export class SftpEngine {
   constructor(private readonly sftp: SFTPWrapper) {}

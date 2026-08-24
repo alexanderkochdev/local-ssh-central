@@ -8,8 +8,8 @@ import { detectOpeners, openWith, openInVscode } from '../services/openers.js';
 import { assertSafePath, assertNotProtected } from './path-guards.js';
 
 /**
- * Lokale Dateisystem-Zugriffe fuer den SFTP-Dateimanager (linke Seite).
- * Renderer darf NIE direkt auf fs zugreifen - nur ueber diese Ipc-Handler.
+ * Lokale Dateisystem-Zugriffe für den SFTP-Dateimanager (linke Seite).
+ * Renderer darf NIE direkt auf fs zugreifen - nur über diese Ipc-Handler.
  */
 export function registerFsIpc(): void {
   ipcMain.handle(IpcChannels.fsHome, () => app.getPath('home'));
@@ -107,7 +107,7 @@ async function listWindowsDrives(): Promise<LocalFileEntry[]> {
         letters.push(letter);
       }
     } catch {
-      // Laufwerk nicht zugaenglich -> ueberspringen
+      // Laufwerk nicht zugänglich -> überspringen
     }
   }
   const labels = await getVolumeLabels();
@@ -121,7 +121,7 @@ async function listWindowsDrives(): Promise<LocalFileEntry[]> {
   });
 }
 
-/** Holt Volume-Namen per PowerShell (falls verfuegbar). */
+/** Holt Volume-Namen per PowerShell (falls verfügbar). */
 async function getVolumeLabels(): Promise<Record<string, string>> {
   try {
     const stdout = await new Promise<string>((resolve, reject) => {

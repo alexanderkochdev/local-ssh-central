@@ -15,8 +15,8 @@ import type {
 
 /**
  * Verwaltet mehrere KeePass/KDBX-Vault-Datenbanken (benannte .kdbx-Dateien in userData/vaults).
- * Die aktive Datenbank wird ueber eine kleine Konfiguration persistiert. Entschluesseltes
- * Material lebt ausschliesslich im Main-Process (nie im Renderer).
+ * Die aktive Datenbank wird über eine kleine Konfiguration persistiert. Entschlüsseltes
+ * Material lebt ausschließlich im Main-Process (nie im Renderer).
  */
 export class VaultService {
   private readonly vaultsDir: string;

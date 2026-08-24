@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { Host, HostDeleteRequest } from '@ssh-central/ipc-contracts';
 
-/** Vom IPC-Handler aufgeloester Host (mit Vault-Referenzen). */
+/** Vom IPC-Handler aufgelöster Host (mit Vault-Referenzen). */
 export type ResolvedHostInput = Omit<Host, 'id' | 'createdAt' | 'updatedAt'> & { id?: string };
 
 /**

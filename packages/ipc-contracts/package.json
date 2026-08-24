@@ -1,7 +1,7 @@
 {
   "name": "@ssh-central/ipc-contracts",
   "version": "1.0.0",
-  "description": "Typisierte IPC-Vertraege und geteilte Types fuer SSH Central",
+  "description": "Typisierte IPC-Verträge und geteilte Types für SSH Central",
   "license": "GPL-3.0-only",
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",
   "private": true,

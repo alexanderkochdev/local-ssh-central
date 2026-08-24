@@ -1,16 +1,16 @@
 # Plugin-System (privat)
 
-> **Vollstaendige Anleitung zum Entwickeln eines Plugins (LLM-tauglich): `plugin-development.md`**
+> **Vollständige Anleitung zum Entwickeln eines Plugins (LLM-tauglich): `plugin-development.md`**
 
-SSH Central unterstuetzt private Plugins, die Main-Process-Logik **erweitern**, **ueberschreiben**
-oder **neu aufbauen** koennen (Credential-Aufloesung, Events, zusaetzliche Tabs). Plugins werden
+SSH Central unterstützt private Plugins, die Main-Process-Logik **erweitern**, **überschreiben**
+oder **neu aufbauen** können (Credential-Auflösung, Events, zusätzliche Tabs). Plugins werden
 aus ZIP-Archiven installiert.
 
 ## Installation
 
 1. Plugin-ZIP herunterladen (z.B. ein Git-Repo als ZIP).
-2. Im 3-Punkte-Menue -> **Plugins** -> **ZIP installieren**.
-3. Nativer Datei-Dialog oeffnet sich; die ZIP wird entpackt und das Plugin aktiviert.
+2. Im 3-Punkte-Menü -> **Plugins** -> **ZIP installieren**.
+3. Nativer Datei-Dialog öffnet sich; die ZIP wird entpackt und das Plugin aktiviert.
 
 Installationsziel: `<userData>/plugins/<name>` (pro Benutzer, nicht im Repo).
 
@@ -44,11 +44,11 @@ module.exports = {
   register(api) {
     api.log.info('Plugin aktiviert.');
 
-    // 1) Credential-Aufloesung erweitern/ueberschreiben
+    // 1) Credential-Auflösung erweitern/überschreiben
     api.hooks.resolveConnectionConfig(async (host, next) => {
       const config = await next(); // Standard-Logik (Vault)
       return { ...config, keepaliveInterval: 30_000 }; // erweitern
-      // ODER eigene Config zurueckgeben OHNE next() -> ueberschreiben
+      // ODER eigene Config zurückgeben OHNE next() -> überschreiben
     });
 
     // 2) Auf Main-Events reagieren (sshEvent, sftpEvent, vaultEvent, ...)
@@ -62,29 +62,39 @@ module.exports = {
       body: 'Einfacher Text-Inhalt des Tabs',
     }));
 
-    // 4) Host-Metadaten lesen (schreibgeschuetzt)
+    // 4) Host-Metadaten lesen (schreibgeschützt)
     const hosts = api.services.hosts.list();
+
+    // 5) App-Settings lesen (read-only, Permission 'settings')
+    const settings = await api.settings.getAll(); // { user, vault }
   },
 };
 ```
 
-## Vertraege
+## Verträge
 
 | API | Zweck |
 |-----|-------|
-| `api.log.*` | Logging (mit Plugin-Namen gepraefixt) |
-| `api.hooks.resolveConnectionConfig(handler)` | Credential-Aufloesung transformieren/ueberschreiben |
+| `api.log.*` | Logging (mit Plugin-Namen gepräfixt) |
+| `api.hooks.resolveConnectionConfig(handler)` | Credential-Auflösung transformieren/überschreiben |
 | `api.events.on(listener)` | Auf `sshEvent`/`sftpEvent`/`vaultEvent`/... reagieren |
-| `api.tabs.register(tab, provider)` | Extra-Tab bei Hosts/Vault hinzufuegen |
+| `api.tabs.register(tab, provider)` | Extra-Tab bei Hosts/Vault hinzufügen |
+| `api.ipc.*` | Bidirektionale IPC zwischen Plugin-UI und Plugin-Logik (`plugin:<name>:`-Namespace) |
+| `api.dialog.*` | Eingabe-, Sicherheits-, Bestätigungs- und Auswahl-Dialoge (rate-limited) |
+| `api.secrets.*` | Verschlüsselte Secrets pro Plugin (nur Main, nie in Logs) |
+| `api.storage.*` / `api.session.*` | Persistenter bzw. Session-Speicher pro Plugin |
+| `api.permissions.*` | Erteilte Rechte abfragen + auf Änderung reagieren |
 | `api.services.hosts.list()` | Host-Metadaten lesen (keine Secrets) |
+| `api.settings.getAll()` | App-Settings read-only (User geräteweit + Vault pro .kdbx, Permission `'settings'`) |
+| `api.terminal.*` / `api.sftp.*` / `api.windows.*` | Host-Fähigkeiten (nur mit erteilter Permission) |
 
 ## Sicherheit
 
-- Ein Plugin laeuft im **Main-Process** und hat damit **vollen Zugriff** auf den Rechner
-  (und ggf. den entschluesselten Vault). **Nur vertrauenswuerdige Plugins installieren.**
+- Ein Plugin läuft im **Main-Process** und hat damit **vollen Zugriff** auf den Rechner
+  (und ggf. den entschlüsselten Vault). **Nur vertrauenswürdige Plugins installieren.**
 - Der Renderer bleibt sandboxed; ein Plugin gibt dem Renderer nur das, was es explizit
-  ueber Tabs/IPC preisgibt.
-- Die ZIP-Extraktion schuetzt vor Path-Traversal (Zip-Slip).
+  über Tabs/IPC preisgibt.
+- Die ZIP-Extraktion schützt vor Path-Traversal (Zip-Slip).
 
 ## Beispiel
 
