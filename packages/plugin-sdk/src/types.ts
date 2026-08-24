@@ -4,12 +4,16 @@
 /** Permission / Faehigkeit eines Plugins. */
 export type PluginPermission = 'hosts' | 'terminal' | 'sftp' | 'windows' | 'settings';
 
-/** Geräteweite UserSettings (read-only fuer Plugins). */
+/** Geräteweite UserSettings (read-only für Plugins). */
 export interface UserSettingsValues {
   language: string;
   theme: 'dark' | 'light';
   terminalFontSize: number;
   showDebugLog: boolean;
+  /** Ziel (Host/IP), das für die Latenz-Anzeige regelmäßig angepingt wird. */
+  pingTarget: string;
+  /** Hardware-Infoleiste (CPU/RAM/GPU/Disk/Netzwerk) unten im Hauptfenster anzeigen. */
+  showSystemBar: boolean;
 }
 
 /** Pro-Vault Settings (read-only fuer Plugins). */

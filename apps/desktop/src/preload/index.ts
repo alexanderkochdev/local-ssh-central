@@ -10,7 +10,7 @@ import {
 } from '@ssh-central/ipc-contracts';
 
 /**
- * Exponiert die typisierte `window.api` via contextBridge. Der Renderer erhaelt ausschliesslich
+ * Exponiert die typisierte `window.api` via contextBridge. Der Renderer erhält ausschließlich
  * diese schlanke API - kein direkter Zugriff auf Electron-, Node- oder Filesystem-Module.
  */
 const api: SshCentralApi = {
@@ -96,6 +96,9 @@ const api: SshCentralApi = {
   dialog: {
     pickFolder: () => ipcRenderer.invoke(IpcChannels.dialogPickFolder),
     pickFile: () => ipcRenderer.invoke(IpcChannels.dialogPickFile),
+  },
+  system: {
+    getStats: () => ipcRenderer.invoke(IpcChannels.systemGetStats),
   },
   plugins: {
     list: () => ipcRenderer.invoke(IpcChannels.pluginsList),

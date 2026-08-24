@@ -17,8 +17,10 @@ import { VaultSettingsDialog } from '../settings/VaultSettingsDialog.js';
 import { PluginsDialog } from '../plugins/PluginsDialog.js';
 import { PluginPanel } from '../plugins/PluginPanel.js';
 import { PluginDialogHost } from '../plugins/PluginDialogHost.js';
+import { SystemBar } from '../../components/SystemBar.js';
 import { useVaultStore } from '../../store/vault-store.js';
 import { usePluginsStore } from '../../store/plugins-store.js';
+import { useSettingsStore } from '../../store/settings-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 
 /**
@@ -37,6 +39,7 @@ export function Workspace() {
   const lock = useVaultStore((state) => state.lock);
   // WICHTIG: stabile Referenz selektieren und Tabs per useMemo ableiten - ein Selektor,
   // der ein neues Array erzeugt, wuerde eine Endlos-Render-Schleife ausloesen.
+  const showSystemBar = useSettingsStore((s) => s.user.showSystemBar);
   const plugins = usePluginsStore((s) => s.plugins);
   const loadPlugins = usePluginsStore((s) => s.load);
   const pluginTabs = useMemo(
@@ -125,6 +128,8 @@ export function Workspace() {
       </Menu>
 
       <Box sx={{ flex: 1, minHeight: 0 }}>{renderView()}</Box>
+
+      {showSystemBar && <SystemBar />}
 
       <UserSettingsDialog open={userSettingsOpen} onClose={() => setUserSettingsOpen(false)} />
       <VaultSettingsDialog open={vaultSettingsOpen} onClose={() => setVaultSettingsOpen(false)} />

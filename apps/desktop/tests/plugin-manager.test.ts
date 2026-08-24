@@ -38,7 +38,14 @@ function makeHost(overrides: Partial<Host> = {}): Host {
 function makeManager(dir: string, override?: Partial<PluginServices>): PluginManager {
   const base: PluginServices = {
     hosts: () => [],
-    getUserSettings: () => ({ language: 'de', theme: 'dark', terminalFontSize: 13, showDebugLog: false }),
+    getUserSettings: () => ({
+      language: 'de',
+      theme: 'dark',
+      terminalFontSize: 13,
+      showDebugLog: false,
+      pingTarget: '8.8.8.8',
+      showSystemBar: true,
+    }),
     getVaultSettings: () => ({ autoLockMinutes: 15, sftpConcurrency: 3, defaultOpener: 'default', fileOpeners: {} }),
     openTerminal: async () => ({ sessionId: 's' }),
     writeTerminal: async () => {},

@@ -14,14 +14,17 @@ import DialogActions from '@mui/material/DialogActions';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useVaultStore } from '../../store/vault-store.js';
+import { useSettingsStore } from '../../store/settings-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { MIN_MASTER_PASSWORD_LENGTH, type VaultMeta } from '@ssh-central/ipc-contracts';
 import { UserSettingsDialog } from '../settings/UserSettingsDialog.js';
+import { SystemBar } from '../../components/SystemBar.js';
 
 /** Login-Screen: Datenbank wechseln, neue erstellen, entsperren. */
 export function VaultGate() {
   const { t } = useTranslation();
   const { status, error, loading, check, list, switchVault, create, unlock } = useVaultStore();
+  const showSystemBar = useSettingsStore((s) => s.user.showSystemBar);
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [activeName, setActiveName] = useState('');
   const [password, setPassword] = useState('');
@@ -92,12 +95,13 @@ export function VaultGate() {
   const needsSetup = status === 'no-vault';
 
   return (
-    <Box
-      sx={{ display: 'grid', placeItems: 'center', height: '100%', bgcolor: 'background.default', p: 2 }}
-    >
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box
-        sx={{
-          display: 'flex',
+        sx={{ display: 'grid', placeItems: 'center', flex: 1, minHeight: 0, bgcolor: 'background.default', p: 2 }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
           flexDirection: 'column',
           gap: 2,
           width: 400,
@@ -114,7 +118,7 @@ export function VaultGate() {
             alt={t('app.title')}
             sx={{ width: 88, height: 88, objectFit: 'contain', display: 'block', mx: 'auto' }}
           />
-          {/* Geräteweite Settings schon auf dem Login-Screen oeffnen (kein Unlock noetig). */}
+          {/* Geräteweite Settings schon auf dem Login-Screen öffnen (kein Unlock nötig). */}
           <Tooltip title={t('settings.user.title')}>
             <IconButton
               size="small"
@@ -217,7 +221,9 @@ export function VaultGate() {
         </DialogActions>
       </Dialog>
 
-      <UserSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <UserSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </Box>
+      {showSystemBar && <SystemBar />}
     </Box>
   );
 }

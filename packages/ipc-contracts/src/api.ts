@@ -51,6 +51,7 @@ import type {
   PluginTabRequest,
 } from './plugins.js';
 import type { UserSettingsValues, VaultSettingsValues } from './setting-definitions.js';
+import type { SystemStats } from './system.js';
 
 export type SettingsScope = 'user' | 'vault';
 
@@ -130,7 +131,7 @@ export interface SshCentralApi {
   };
   /**
    * Schema-getriebene Einstellungen. Zwei getrennte Provider:
-   * - 'user'  -> geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfuegbar)
+   * - 'user'  -> geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfügbar)
    * - 'vault' -> pro Vault in der .kdbx (portabel)
    * Beide validieren ueber die gemeinsamen SettingDefinitionen (ipc-contracts).
    */
@@ -149,6 +150,10 @@ export interface SshCentralApi {
   dialog: {
     pickFolder(): Promise<string | null>;
     pickFile(): Promise<string | null>;
+  };
+  /** System-Ressourcen-Statistiken (CPU, RAM, GPU, Speicher) fuer die Statusleiste. */
+  system: {
+    getStats(): Promise<SystemStats>;
   };
   /**
    * Oeffnet neue, unabhaengige Fenster fuer Terminal-/SFTP-Sessions (unbegrenzt parallel).

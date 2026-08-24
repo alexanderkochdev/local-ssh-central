@@ -45,6 +45,9 @@ export const IpcChannels = {
   dialogPickFolder: 'dialog:pickFolder',
   dialogPickFile: 'dialog:pickFile',
 
+  // System-Ressourcen (CPU, RAM, GPU, Speicher) fuer die Statusleiste
+  systemGetStats: 'system:getStats',
+
   // Fenster-Verwaltung (neue Terminal-/SFTP-Fenster)
   windowOpen: 'window:open',
 

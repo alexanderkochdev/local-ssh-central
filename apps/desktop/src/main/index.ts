@@ -18,6 +18,7 @@ import { KdbxVaultSettingsStorage } from './services/kdbx-vault-settings-storage
 import { SshService } from './services/ssh-service.js';
 import { SftpService } from './services/sftp-service.js';
 import { resolveConnectionConfig } from './services/credential-resolver.js';
+import { collectSystemStats, setPingTarget } from './services/system-stats.js';
 import { registerIpc } from './ipc/router.js';
 import type { AppServices } from './ipc/types.js';
 import { createMainWindow } from './windows.js';
@@ -45,18 +46,18 @@ let sessionWindows: SessionWindowManager | null = null;
 let plugins: PluginManager | null = null;
 
 // Schema-getriebene Settings (ipc-contracts).
-// - UserSettings: geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfuegbar)
+// - UserSettings: geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfügbar)
 // - VaultSettings: pro Vault in der .kdbx (portabel) - KDBX-Persistenz in Phase 2,
 //   bis dahin als In-Memory-Stub, damit die Architektur bereits voll verdrahtet ist.
 let userSettings: UserSettings | null = null;
 let vaultSettings: VaultSettings | null = null;
 
-/** Pusht eine Settings-Aenderung an alle Fenster (user UND vault). */
+/** Pusht eine Settings-Änderung an alle Fenster (user UND vault). */
 function emitSettings(scope: SettingsScope, values: UserSettingsValues | VaultSettingsValues): void {
   emit(IpcChannels.settingsChanged, { scope, values } satisfies SettingsChangedPayload);
 }
 
-/** Wendet Vault-Settings an, die im Main wirken (Auto-Lock + SFTP-Parallelitaet). */
+/** Wendet Vault-Settings an, die im Main wirken (Auto-Lock + SFTP-Parallelität). */
 function applyVaultSettings(values: VaultSettingsValues): void {
   // Auto-Lock
   const minutes = values.autoLockMinutes;
@@ -65,7 +66,7 @@ function applyVaultSettings(values: VaultSettingsValues): void {
   if (autoLockMs > 0) {
     scheduleAutoLock();
   }
-  // SFTP-Parallelitaet
+  // SFTP-Parallelität
   services.sftp?.setConcurrency(Math.max(1, Math.min(16, values.sftpConcurrency)));
 }
 
@@ -96,7 +97,7 @@ function scheduleAutoLock(): void {
   }
   clearAutoLock();
   autoLockTimer = setTimeout(() => {
-    log.info('[main] auto-lock nach Inaktivitaet');
+    log.info('[main] auto-lock nach Inaktivität');
     void services.ssh?.dispose();
     void services.sftp?.dispose();
     services.vault?.lock();
@@ -117,7 +118,7 @@ app.whenReady().then(async () => {
   const userData = app.getPath('userData');
   log.info('[main] app ready');
 
-  // Renderer fuer Produktion ueber app:// servieren (ES-Module, kein file://-Problem).
+  // Renderer für Produktion über app:// servieren (ES-Module, kein file://-Problem).
   registerAppProtocol(join(__dirname, '../renderer'));
   log.info('[main] app protocol registered');
 
@@ -129,18 +130,20 @@ app.whenReady().then(async () => {
   const appDataBase = app.getPath('appData'); // %APPDATA% (Roaming)
   userSettings = new UserSettings(join(appDataBase, '@ssh-local'));
   await userSettings.load();
+  // Latenz-Messung: Ping-Ziel aus den UserSettings übernehmen.
+  setPingTarget(userSettings.get().pingTarget);
 
   // VaultSettings liegen IN der .kdbx (dedizierter "SSH Central/Settings"-Eintrag).
   // Hinweis: Bei gelocktem/fehlendem Vault bleiben die In-Memory-Defaults aktiv; nach dem
-  // Unlock werden die Vault-Settings ueber den Unlock-Flow neu geladen (siehe router).
+  // Unlock werden die Vault-Settings über den Unlock-Flow neu geladen (siehe router).
   vaultSettings = new VaultSettings(new KdbxVaultSettingsStorage(vault.underlying));
   await vaultSettings.load();
 
   // Plugin-Protocol registrieren (serviert plugin://-UI-Dateien).
   registerPluginProtocol(join(userData, 'plugins'));
 
-  // Loest Verbindungsparameter aus Host-Metadaten + Vault auf (nur Main-Process),
-  // durchlaeuft dabei die Plugin-Middleware-Kette (Erweitern/Ueberschreiben).
+  // Löst Verbindungsparameter aus Host-Metadaten + Vault auf (nur Main-Process),
+  // durchläuft dabei die Plugin-Middleware-Kette (Erweitern/Überschreiben).
   const getConfig = async (hostId: string) => {
     const host = hosts.getById(hostId);
     if (!host) {
@@ -172,10 +175,10 @@ app.whenReady().then(async () => {
   );
   sessionWindows = new SessionWindowManager(services);
 
-  // Dialog-Broker: Plugin-Dialoge -> Renderer anzeigen, Antwort zurueck.
+  // Dialog-Broker: Plugin-Dialoge -> Renderer anzeigen, Antwort zurück.
   const pluginBroker = createPluginDialogBroker(emit);
 
-  // PluginManager mit App-Services verdrahten (Host-Faehigkeiten + Bridge).
+  // PluginManager mit App-Services verdrahten (Host-Fähigkeiten + Bridge).
   const pluginServices: PluginServices = {
     hosts: () => hosts.list(),
     getUserSettings: () => userSettings?.get() ?? { ...USER_SETTINGS_DEFAULTS },
@@ -216,14 +219,14 @@ app.whenReady().then(async () => {
     () => emit(IpcChannels.vaultEvent, { type: 'locked' }),
     () => {
       scheduleAutoLock();
-      // Nach dem Entsperren die VaultSettings aus der geoeffneten .kdbx laden.
+      // Nach dem Entsperren die VaultSettings aus der geöffneten .kdbx laden.
       void reloadVaultSettings();
     },
     plugins,
     pluginBroker,
   );
 
-  // Neue Terminal-/SFTP-Fenster oeffnen (unbegrenzt parallel).
+  // Neue Terminal-/SFTP-Fenster öffnen (unbegrenzt parallel).
   ipcMain.on(IpcChannels.windowOpen, (_event, request: { kind: 'terminal' | 'sftp'; id: string }) => {
     sessionWindows?.open(request.kind, request.id);
   });
@@ -255,6 +258,8 @@ app.whenReady().then(async () => {
       if (request.scope === 'user') {
         const values = await userSettings!.update(request.patch as Partial<UserSettingsValues>);
         emitSettings('user', values);
+        // Latenz-Ziel bei Änderung sofort neu setzen.
+        setPingTarget(values.pingTarget);
         return values;
       }
       const values = await vaultSettings!.update(request.patch as Partial<VaultSettingsValues>);
@@ -264,7 +269,7 @@ app.whenReady().then(async () => {
     },
   );
 
-  // Native Ordner-/Datei-Dialoge (fuer SettingDefinition type 'folder'/'file').
+  // Native Ordner-/Datei-Dialoge (für SettingDefinition type 'folder'/'file').
   ipcMain.handle(IpcChannels.dialogPickFolder, async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
     return result.canceled ? null : result.filePaths[0] ?? null;
@@ -274,13 +279,16 @@ app.whenReady().then(async () => {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
+  // System-Ressourcen fuer die Statusleiste (CPU, RAM, GPU, Speicher).
+  ipcMain.handle(IpcChannels.systemGetStats, () => collectSystemStats());
+
   mainWindow = createMainWindow();
-  // Jede Renderer-Ipc aktivitaet setzt den Auto-Lock-Timer zurueck.
+  // Jede Renderer-Ipc-Aktivität setzt den Auto-Lock-Timer zurück.
   mainWindow.webContents.on('ipc-message', () => scheduleAutoLock());
   log.info('[main] window created');
 });
 
-// Beim Beenden alle Verbindungen schliessen und entschluesseltes Material verwerfen.
+// Beim Beenden alle Verbindungen schließen und entschlüsseltes Material verwerfen.
 app.on('before-quit', () => {
   sessionWindows?.closeAll();
   void services.ssh?.dispose();

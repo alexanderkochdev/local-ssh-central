@@ -2,7 +2,7 @@
  * Gemeinsames, datengetriebenes Settings-Schema fuer SSH Central.
  *
  * EIN Schema, ZWEI Provider:
- * - `UserSettings`  -> geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfuegbar)
+ * - `UserSettings`  -> geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfügbar)
  * - `VaultSettings` -> pro Vault in der .kdbx (portabel)
  *
  * Beide Provider validieren ueber dieselben `SettingDefinition`s und den gemeinsamen
@@ -68,6 +68,10 @@ export interface UserSettingsValues {
   theme: 'dark' | 'light';
   terminalFontSize: number;
   showDebugLog: boolean;
+  /** Ziel (Host/IP), das für die Latenz-Anzeige regulaer angepingt wird. */
+  pingTarget: string;
+  /** Hardware-Infoleiste (CPU/RAM/GPU/Disk/Netzwerk) unten im Hauptfenster anzeigen. */
+  showSystemBar: boolean;
 }
 
 export const USER_SETTINGS_DEFAULTS: UserSettingsValues = {
@@ -75,6 +79,8 @@ export const USER_SETTINGS_DEFAULTS: UserSettingsValues = {
   theme: 'dark',
   terminalFontSize: 13,
   showDebugLog: false,
+  pingTarget: '8.8.8.8',
+  showSystemBar: true,
 };
 
 export const USER_SETTINGS_DEFINITIONS: SettingDefinition[] = [
@@ -116,6 +122,20 @@ export const USER_SETTINGS_DEFINITIONS: SettingDefinition[] = [
     label: 'settings.showDebug',
     description: 'settings.showDebug.description',
     default: USER_SETTINGS_DEFAULTS.showDebugLog,
+  },
+  {
+    key: 'pingTarget',
+    type: 'string',
+    label: 'settings.pingTarget',
+    description: 'settings.pingTarget.description',
+    default: USER_SETTINGS_DEFAULTS.pingTarget,
+  },
+  {
+    key: 'showSystemBar',
+    type: 'boolean',
+    label: 'settings.showSystemBar',
+    description: 'settings.showSystemBar.description',
+    default: USER_SETTINGS_DEFAULTS.showSystemBar,
   },
 ];
 
@@ -177,14 +197,14 @@ export const SETTING_DEFINITIONS_BY_KEY: ReadonlyMap<string, SettingDefinition> 
 
 // ------------------------------------------------------------------ Settings-Trees (fuer die UI)
 
-/** UserSettings als Section-Tree (geräteweit, schon auf dem Login-Screen verfuegbar). */
+/** UserSettings als Section-Tree (geräteweit, schon auf dem Login-Screen verfügbar). */
 export const USER_SETTINGS_SECTIONS: SettingSection[] = [
   {
     id: 'appearance',
     title: 'settings.section.appearance',
     description: 'settings.section.appearance.description',
     settings: USER_SETTINGS_DEFINITIONS.filter((def) =>
-      ['language', 'theme', 'terminalFontSize'].includes(def.key),
+      ['language', 'theme', 'terminalFontSize', 'showSystemBar'].includes(def.key),
     ),
   },
   {
@@ -192,6 +212,11 @@ export const USER_SETTINGS_SECTIONS: SettingSection[] = [
     title: 'settings.section.debug',
     description: 'settings.section.debug.description',
     settings: USER_SETTINGS_DEFINITIONS.filter((def) => def.key === 'showDebugLog'),
+  },
+  {
+    id: 'network',
+    title: 'settings.section.network',
+    settings: USER_SETTINGS_DEFINITIONS.filter((def) => def.key === 'pingTarget'),
   },
 ];
 
