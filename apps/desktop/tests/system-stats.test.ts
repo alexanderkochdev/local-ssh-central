@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => 'C:/data'), getGPUInfo: vi.fn() },
 }));
-vi.mock('node:fs', () => ({ promises: { readdir: vi.fn(), stat: vi.fn() } }));
+vi.mock('node:fs', () => ({ promises: { readdir: vi.fn(), stat: vi.fn(), readFile: vi.fn() } }));
 vi.mock('node:child_process', () => ({
   // Netzwerk nicht verfügbar -> execFile meldet einen Fehler, Zähler bleiben 0.
   execFile: vi.fn((_f: string, _a: string[], _o: unknown, cb: (err: Error | null, out?: string) => void) =>
@@ -52,15 +52,22 @@ describe('collectSystemStats', () => {
     expect(stats.gpu.name).toBeUndefined();
   });
 
-  it('berechnet die Netzwerk-Rate über zwei Messungen (netstat-Parsing)', async () => {
+  it('berechnet die Netzwerk-Rate über zwei Messungen', async () => {
     let rx = 1_000_000;
-    // Erste Messung -> prevNet leer, Rate 0; zweite -> Delta groesser 0.
-    (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (_f: string, _a: string[], _o: unknown, cb: (err: Error | null, out?: string) => void) => {
+    // Plattformabhaengig: Windows liest `netstat -e`, Linux `/proc/net/dev`.
+    if (process.platform === 'win32') {
+      (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (_f: string, _a: string[], _o: unknown, cb: (err: Error | null, out?: string) => void) => {
+          rx += 102_400; // +100 KB pro Messung
+          cb(null, `Bytes                ${rx}            ${rx}`);
+        },
+      );
+    } else {
+      vi.mocked(fs.readFile).mockImplementation(async () => {
         rx += 102_400; // +100 KB pro Messung
-        cb(null, `Bytes                ${rx}            ${rx}`);
-      },
-    );
+        return `  eth0: ${rx} 0 0 0 0 0 0 0 ${rx} 0 0 0 0 0 0 0\n`;
+      });
+    }
 
     // Erstes Sample setzt prevNet; die zweite Messung (nach Pause, damit dtSec > 0)
     // liefert eine positive Up-/Download-Rate.

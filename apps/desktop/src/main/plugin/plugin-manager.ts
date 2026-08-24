@@ -73,6 +73,8 @@ export class PluginManager {
   private permissionListeners = new Map<string, (perms: PluginPermission[]) => void>();
   private logs: PluginLogEntry[] = [];
   private readonly LOG_LIMIT = 500;
+  /** Test-Hook: ueberschreibt den SafeStorage (null = Produktion via electron). */
+  private safeStorageOverride: Electron.SafeStorage | undefined | null = null;
 
   constructor(
     private readonly pluginsDir: string,
@@ -538,8 +540,16 @@ export class PluginManager {
     fn(`[plugin:${name}] ${message}`);
   }
 
+  /** Test-Hook: erlaubt das Injizieren eines SafeStorage-Mocks (null = Produktion). */
+  setSafeStorageOverride(override: Electron.SafeStorage | undefined | null): void {
+    this.safeStorageOverride = override;
+  }
+
   /** Lazy-Zugriff auf Electron safeStorage (im Test/ohne Electron undefined). */
   private getSafeStorage(): Electron.SafeStorage | undefined {
+    if (this.safeStorageOverride !== null) {
+      return this.safeStorageOverride ?? undefined;
+    }
     try {
       const electron = requireShim('electron') as typeof import('electron');
       return electron.safeStorage;

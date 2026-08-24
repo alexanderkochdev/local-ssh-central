@@ -12,7 +12,7 @@ vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 vi.mock('electron', () => ({ shell: { openPath: vi.fn() } }));
 
 import { shell } from 'electron';
-import { openWith, openInVscode } from '../src/main/services/openers.js';
+import { openWith, openInVscode, detectOpeners } from '../src/main/services/openers.js';
 
 let dir: string | undefined;
 const originalLocalAppData = process.env.LOCALAPPDATA;
@@ -59,14 +59,20 @@ describe('openWith', () => {
     await expect(openWith('/tmp/a.txt', 'does-not-exist')).rejects.toThrow('Programm nicht gefunden');
   });
 
-  it('spawnt ein erkanntes Programm (notepad)', async () => {
+  it('spawnt ein erkanntes Programm (notepad)', { skip: process.platform !== 'win32' }, async () => {
     await withEmptyLocalAppData();
     await openWith('/tmp/a.txt', 'notepad');
     expect(spawnMock).toHaveBeenCalledWith('notepad.exe', ['/tmp/a.txt'], expect.objectContaining({ detached: true }));
   });
+
+  it('erkennt installierte Linux-Openers', { skip: process.platform === 'win32' }, () => {
+    const ids = detectOpeners().map((o) => o.id);
+    expect(ids).toContain('code');
+    expect(ids).toContain('gedit');
+  });
 });
 
-describe('openInVscode', () => {
+describe.skipIf(process.platform !== 'win32')('openInVscode (Windows)', () => {
   it('wirft, wenn VSCode nicht installiert ist', async () => {
     await withEmptyLocalAppData();
     await expect(openInVscode('/tmp')).rejects.toThrow('Visual Studio Code ist nicht installiert');
@@ -90,5 +96,12 @@ describe('openInVscode', () => {
       ['--folder-uri', 'vscode-remote://ssh-remote+alex@example.com/var/www'],
       expect.anything(),
     );
+  });
+});
+
+describe.skipIf(process.platform === 'win32')('openInVscode (Linux)', () => {
+  it('spawnt code fuer einen lokalen Ordner', async () => {
+    await openInVscode('/projekte/foo');
+    expect(spawnMock).toHaveBeenCalledWith('code', ['/projekte/foo'], expect.objectContaining({ detached: true }));
   });
 });

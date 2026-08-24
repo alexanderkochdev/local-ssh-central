@@ -221,12 +221,14 @@ describe('PluginManager', () => {
     expect(granted.value).toBe('ok');
   });
 
-  it('secrets werfen ohne System-Keystore (Test-Umgebung)', async () => {
+  it('secrets werfen ohne System-Keystore (kein safeStorage verfügbar)', async () => {
     await installPlugin('p10', ``);
     const mgr = makeManager(pluginsDir);
+    // Deterministisch: SafeStorage deaktivieren, unabhaengig vom Host-Keystore.
+    mgr.setSafeStorageOverride(undefined);
     await mgr.loadAll();
 
-    await expect(mgr.secretSet('p10', 'k', 'v')).rejects.toThrow(/Keystore|verfuegbar/);
+    await expect(mgr.secretSet('p10', 'k', 'v')).rejects.toThrow(/Keystore|verfügbar/);
   });
 
   it('Berechtigungs-Prompt erteilt beim ersten Zugriff (Zustimmung)', async () => {
