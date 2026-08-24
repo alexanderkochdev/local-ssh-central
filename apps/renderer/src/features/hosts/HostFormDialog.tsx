@@ -213,7 +213,15 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
                 label={t('hosts.selectVaultPassword')}
                 select
                 value={passwordChoice}
-                onChange={(e) => setPasswordChoice(e.target.value)}
+                onChange={(e) => {
+                  setPasswordChoice(e.target.value);
+                  // Beim Wechsel der Referenz den Username aus dem gewählten Vault-Eintrag
+                  // übernehmen, sonst bleibt der alte Login-User aktiv.
+                  const entry = passwordEntries.find((p) => p.id === e.target.value);
+                  if (entry?.userName) {
+                    setUsername(entry.userName);
+                  }
+                }}
                 fullWidth
               >
                 <MenuItem value={NEW_PASSWORD}>{isEditing ? t('hosts.newPassword') : t('hosts.password')}</MenuItem>

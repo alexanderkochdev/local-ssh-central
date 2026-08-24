@@ -207,7 +207,7 @@ export function useSftpActions({
     }
   }
 
-  /** Oeffnet einen Ordner als VSCode-Workspace (lokal oder remote via Remote-SSH). */
+  /** Öffnet einen Ordner als VSCode-Workspace (lokal oder remote via Remote-SSH). */
   function openInVscode(side: Side, folder?: string): void {
     const folderPath = folder ?? (side === 'local' ? local.path : remote.path);
     if (side === 'local') {
@@ -321,15 +321,23 @@ export function useSftpActions({
   }
 
   function handleDragStart(side: Side, entry: PaneEntry, e: DragEvent): void {
-    e.dataTransfer.setData(
-      'application/x-sshcentral',
-      JSON.stringify({ side, name: entry.name, path: entry.path, isDirectory: entry.isDirectory }),
-    );
+    const payload = JSON.stringify({
+      side,
+      name: entry.name,
+      path: entry.path,
+      isDirectory: entry.isDirectory,
+    });
+    // Chromium/Electron verwirft Custom-MIME-Typen im dataTransfer auf Windows teils zuverlässig
+    // NICHT - deshalb zusätzlich den Standard-Typ 'text/plain' als Träger setzen, damit der
+    // Drop-Handler die Daten garantiert liest.
+    e.dataTransfer.setData('application/x-sshcentral', payload);
+    e.dataTransfer.setData('text/plain', payload);
     e.dataTransfer.effectAllowed = 'copy';
   }
 
   function handlePaneDrop(e: DragEvent, targetSide: Side): void {
-    const raw = e.dataTransfer.getData('application/x-sshcentral');
+    const raw =
+      e.dataTransfer.getData('application/x-sshcentral') || e.dataTransfer.getData('text/plain');
     if (!raw) {
       return;
     }
