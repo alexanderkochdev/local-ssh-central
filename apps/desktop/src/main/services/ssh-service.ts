@@ -89,4 +89,12 @@ export class SshService {
   async dispose(): Promise<void> {
     await this.sessions.closeAll();
   }
+
+  /**
+   * Schließt die Verbindung zu einem Host (z.B. nach einer Credential-Aenderung),
+   * damit die naechste Verbindung die neuen Username/Passwort verwendet.
+   */
+  invalidateHost(hostId: string): void {
+    this.connections.closeConnection(hostId);
+  }
 }

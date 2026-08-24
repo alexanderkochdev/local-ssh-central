@@ -91,6 +91,21 @@ export class ConnectionManager {
     this.refCounts.clear();
   }
 
+  /**
+   * Erzwingt das Schliessen der Verbindung zu hostId und verwirft den gemerkten Zustand
+   * (z.B. nach einer Credential-Aenderung, damit die naechste Verbindung die NEUEN
+   * Username/Passwort verwendet statt die gecachte alte Verbindung wiederzuverwenden).
+   */
+  closeConnection(hostId: string): void {
+    const managed = this.connections.get(hostId);
+    if (managed) {
+      managed.client.end();
+      this.connections.delete(hostId);
+    }
+    this.refCounts.delete(hostId);
+    this.pending.delete(hostId);
+  }
+
   private async connect(hostId: string, config: HostConnectionConfig): Promise<Client> {
     const client = new Client();
 

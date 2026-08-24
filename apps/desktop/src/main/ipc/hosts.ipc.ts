@@ -63,7 +63,20 @@ export function registerHostsIpc(services: AppServices): void {
     }
 
     const resolved: ResolvedHostInput = { ...request.host, secrets: refs };
-    return services.hosts.upsert(resolved);
+    const saved = await services.hosts.upsert(resolved);
+
+    // Credentials geaendert -> bestehende SSH-/SFTP-Verbindungen invalidiert, damit die
+    // naechste Verbindung die NEUEN Username/Passwort verwendet (der ConnectionManager
+    // cached sonst die alte, bereits authentifizierte Verbindung).
+    const credentialsChanged =
+      Boolean(existing) &&
+      (existing!.authMethod !== request.host.authMethod ||
+        JSON.stringify(existing!.secrets) !== JSON.stringify(refs));
+    if (credentialsChanged) {
+      services.ssh.invalidateHost(saved.id);
+      services.sftp.invalidateHost(saved.id);
+    }
+    return saved;
   });
 
   ipcMain.handle(IpcChannels.hostsDelete, (_event, request: HostDeleteRequest) =>

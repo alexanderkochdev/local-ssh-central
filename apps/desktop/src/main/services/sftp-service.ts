@@ -193,6 +193,14 @@ export class SftpService {
     }
   }
 
+  /**
+   * Schließt die SFTP-Verbindung zu einem Host (z.B. nach einer Credential-Aenderung),
+   * damit die naechste Verbindung die neuen Username/Passwort verwendet.
+   */
+  invalidateHost(hostId: string): void {
+    this.connections.closeConnection(`sftp:${hostId}`);
+  }
+
   /** Schließt alle SFTP-Sessions (App-Quit / Vault-Lock). */
   async dispose(): Promise<void> {
     for (const session of this.editSessions.values()) {

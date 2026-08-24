@@ -224,6 +224,20 @@ describe('ConnectionManager (ssh2-Mock)', () => {
     vi.useRealTimers();
   });
 
+  it('closeConnection schliesst die Verbindung und entfernt den Zustand', async () => {
+    const manager = new ConnectionManager();
+    const promise = manager.acquire('h1', makeConfig());
+    const client = mockClient();
+    client.emit('hostkeys', [fakeKey()]);
+    await flushMicrotasks();
+    client.emit('ready');
+    await promise;
+
+    manager.closeConnection('h1');
+    expect(client.ended).toBe(true);
+    expect(manager.getFingerprint('h1')).toBeUndefined();
+  });
+
   it('disposeAll schliesst alle Verbindungen und leert den Zustand', async () => {
     const manager = new ConnectionManager();
     const p1 = manager.acquire('h1', makeConfig());
