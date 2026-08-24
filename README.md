@@ -7,17 +7,17 @@ komplett lokal, offen und unter deiner Kontrolle. Unbegrenzt viele SSH-Hosts, pa
 Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht — verschlüsselt
 über ein KeePass-kompatibles (KDBX) Vault.
 
-[![Version](https://img.shields.io/github/package-json/v/alexanderkochdev/local-ssh-central)](CHANGELOG.md)
+[![Version](https://img.shields.io/github/package-json/v/alexanderkochdev/ssh-central)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![CI Build](https://github.com/alexanderkochdev/local-ssh-central/actions/workflows/build.yml/badge.svg)](https://github.com/alexanderkochdev/local-ssh-central/actions/workflows/build.yml)
+[![CI Build](https://github.com/alexanderkochdev/ssh-central/actions/workflows/build.yml/badge.svg)](https://github.com/alexanderkochdev/ssh-central/actions/workflows/build.yml)
 ![Plattform](https://img.shields.io/badge/Plattform-Windows%20%7C%20Linux-blue)
 
-[![Stars](https://img.shields.io/github/stars/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/stargazers)
-[![Forks](https://img.shields.io/github/forks/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/forks)
-[![Issues](https://img.shields.io/github/issues/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/pulls)
-[![Contributors](https://img.shields.io/github/contributors/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/graphs/contributors)
-[![Last Commit](https://img.shields.io/github/last-commit/alexanderkochdev/local-ssh-central)](https://github.com/alexanderkochdev/local-ssh-central/commits/develop)
+[![Stars](https://img.shields.io/github/stars/alexanderkochdev/ssh-central)](https://github.com/alexanderkochdev/ssh-central/stargazers)
+[![Forks](https://img.shields.io/github/forks/alexanderkochdev/ssh-central)](https://github.com/alexanderkochdev/ssh-central/forks)
+[![Issues](https://img.shields.io/github/issues/alexanderkochdev/ssh-central)](https://github.com/alexanderkochdev/ssh-central/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/alexanderkochdev/ssh-central)](https://github.com/alexanderkochdev/ssh-central/pulls)
+[![Contributors](https://img.shields.io/github/contributors/alexanderkochdev/ssh-central)](https://github.com/alexanderkochdev/ssh-central/graphs/contributors)
+[![Last Commit](https://img.shields.io/github/last-commit/alexanderkochdev/ssh-central)](https://github.com/alexanderkochdev/ssh-central/commits/develop)
 
 | | |
 |---|---|
@@ -31,7 +31,7 @@ Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht —
 
 ## Download
 
-Lade die aktuelle Version von den [GitHub Releases](https://github.com/alexanderkochdev/local-ssh-central/releases) herunter
+Lade die aktuelle Version von den [GitHub Releases](https://github.com/alexanderkochdev/ssh-central/releases) herunter
 (Windows-Installer `.exe`, Linux AppImage/deb). Alle Secrets bleiben lokal in deinem
 KeePass-kompatiblen Vault.
 

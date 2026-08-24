@@ -1,6 +1,6 @@
 # @ssh-central/plugin-sdk
 
-> Typisiertes **SDK** zum Entwickeln von [SSH Central](https://github.com/alexanderkochdev/local-ssh-central)-Plugins —
+> Typisiertes **SDK** zum Entwickeln von [SSH Central](https://github.com/alexanderkochdev/ssh-central)-Plugins —
 > vollstaendige `PluginApi`, `definePlugin`-Helper und die `ssh-central-plugin`-CLI
 > (`build` + `pack`) zum Erzeugen installierbarer Plugin-ZIPs.
 

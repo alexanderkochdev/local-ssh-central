@@ -6,7 +6,7 @@
   "author": "Alexander Koch <https://www.alexanderkoch.dev/>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alexanderkochdev/local-ssh-central"
+    "url": "https://github.com/alexanderkochdev/ssh-central"
   },
   "publishConfig": {
     "access": "public"
