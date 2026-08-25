@@ -213,7 +213,7 @@ describe('useSettingsStore', () => {
   it('setVault optimistisch', async () => {
     setApi({
       settings: {
-        setVault: vi.fn().mockResolvedValue({ autoLockMinutes: 30, sftpConcurrency: 3, defaultOpener: 'default', fileOpeners: {} }),
+        setVault: vi.fn().mockResolvedValue({ autoLockMinutes: 30, sftpConcurrency: 3, defaultOpener: 'default', clipboardClearSeconds: 10, fileOpeners: {} }),
       },
     });
 
@@ -225,7 +225,7 @@ describe('useSettingsStore', () => {
 
   it('init lädt User+Vault und abonniert onChanged', async () => {
     const user = { language: 'en', theme: 'dark', terminalFontSize: 15, showDebugLog: true };
-    const vault = { autoLockMinutes: 60, sftpConcurrency: 8, defaultOpener: 'default', fileOpeners: {} };
+    const vault = { autoLockMinutes: 60, sftpConcurrency: 8, defaultOpener: 'default', clipboardClearSeconds: 10, fileOpeners: {} };
     const onChanged = vi.fn(() => () => {});
     setApi({
       settings: {

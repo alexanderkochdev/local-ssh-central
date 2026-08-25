@@ -1,8 +1,9 @@
 # Roadmap
 
-> **Aktuelle Position:** **v1.1.0** veröffentlicht. Die Kern-Säulen (KDBX-Vault, Terminal,
-> SFTP, Plugin-Plattform) und das schema-getriebene Settings-System sind umgesetzt; die
-> Deliveries sind im [CHANGELOG](../CHANGELOG.md) dokumentiert.
+> **Aktuelle Position:** **v1.3.0** veröffentlicht. Kern-Säulen (KDBX-Vault, Terminal, SFTP,
+> Plugin-Plattform) und Settings-System sind umgesetzt. **v1.3.0** brachte die Quick Wins
+> (Multi-Host Command Runner, Clipboard-Guard, Command Palette, Session-Farben) plus den
+> GitHub-Update-Check. Die Deliveries sind im [CHANGELOG](../CHANGELOG.md) dokumentiert.
 
 Diese Roadmap zeigt die **offenen und geplanten** Punkte. Abgeschlossene Meilensteine finden
 sich im CHANGELOG.
@@ -15,7 +16,7 @@ sich im CHANGELOG.
 - **Test-Backlog (risikoorientierte Nacharbeit)**: Restliche Desktop-IPC-Handler
   (`fs/hosts/ssh/sftp/plugins.ipc`) + `index.ts`-Glue; Renderer-Views mit Logikanteil
   (`HostsView`/`HostFormDialog`, `Workspace`). Kernlogik + Security sind bereits zu
-  90–100% abgedeckt (235 Tests, Thresholds aktiv).
+  90–100% abgedeckt (240+ Tests, Thresholds aktiv).
 
 ## Post-MVP (Ideen)
 
@@ -31,7 +32,7 @@ sich im CHANGELOG.
 ```
 feature/foo ──► develop ◄── feature/bar
                      │
-              release/1.1.0 ──► main ──► Tag v1.1.0
+              release/1.3.0 ──► main ──► Tag v1.3.0
 ```
 
 - `develop` ist der einzige Integrationsbranch (keine direkten `main`-Commits).

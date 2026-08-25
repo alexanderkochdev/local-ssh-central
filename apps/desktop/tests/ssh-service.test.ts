@@ -3,7 +3,7 @@ import type { HostConnectionConfig, TerminalSession } from '@ssh-central/ssh-cor
 
 // Mocke die ssh-core-Module (ConnectionManager/SessionManager), damit SshService nur die
 // Orchestrierung testet - echte ssh2-Verbindungen sind bereits in ssh-core abgedeckt.
-const { cmInstances, smInstances } = vi.hoisted(() => {
+const { cmInstances, smInstances, rrInstances } = vi.hoisted(() => {
   const cmInstances: Array<{
     getFingerprint: ReturnType<typeof vi.fn>;
     acquire: ReturnType<typeof vi.fn>;
@@ -16,7 +16,8 @@ const { cmInstances, smInstances } = vi.hoisted(() => {
     resize: ReturnType<typeof vi.fn>;
     closeAll: ReturnType<typeof vi.fn>;
   }> = [];
-  return { cmInstances, smInstances };
+  const rrInstances: Array<{ run: ReturnType<typeof vi.fn> }> = [];
+  return { cmInstances, smInstances, rrInstances };
 });
 
 vi.mock('@ssh-central/ssh-core', () => {
@@ -38,7 +39,17 @@ vi.mock('@ssh-central/ssh-core', () => {
       smInstances.push(this);
     }
   }
-  return { ConnectionManager: MockConnectionManager, SessionManager: MockSessionManager };
+  class MockCommandRunner {
+    run = vi.fn();
+    constructor() {
+      rrInstances.push(this);
+    }
+  }
+  return {
+    ConnectionManager: MockConnectionManager,
+    SessionManager: MockSessionManager,
+    CommandRunner: MockCommandRunner,
+  };
 });
 
 import { SshService } from '../src/main/services/ssh-service.js';
@@ -81,12 +92,13 @@ function makeService() {
   const emit = vi.fn();
   const persist = vi.fn().mockResolvedValue(undefined);
   const service = new SshService(getConfig, emit, persist);
-  return { service, getConfig, emit, persist, cm: cmInstances[0]!, sm: smInstances[0]! };
+  return { service, getConfig, emit, persist, cm: cmInstances[0]!, sm: smInstances[0]!, rr: rrInstances[0]! };
 }
 
 beforeEach(() => {
   cmInstances.length = 0;
   smInstances.length = 0;
+  rrInstances.length = 0;
 });
 
 describe('SshService', () => {
@@ -172,5 +184,57 @@ describe('SshService', () => {
 
     await service.dispose();
     expect(sm.closeAll).toHaveBeenCalled();
+  });
+
+  it('disconnect emittet sessionClosed sofort und raeumt auf (kein Doppel-Event)', async () => {
+    const terminal = makeTerminal();
+    const { service, emit, sm } = makeService();
+    sm.open.mockResolvedValue(terminal);
+    const info = await service.connect('h1');
+
+    service.disconnect(info.id);
+
+    expect(sm.close).toHaveBeenCalledWith(info.id);
+    expect(emit).toHaveBeenCalledWith({ type: 'sessionStatus', sessionId: info.id, status: 'closed' });
+    expect(emit).toHaveBeenCalledWith({ type: 'sessionClosed', sessionId: info.id });
+    expect(service.listSessions()).toHaveLength(0);
+
+    // Spaeteres Stream-close darf KEIN weiteres sessionClosed ausloesen (Dedup).
+    const before = emit.mock.calls.length;
+    terminal.emitClose();
+    expect(emit.mock.calls.length).toBe(before);
+  });
+
+  it('disconnect bei unbekannter Session ist ein No-Op', () => {
+    const { service, sm } = makeService();
+    service.disconnect('does-not-exist');
+    expect(sm.close).not.toHaveBeenCalled();
+  });
+
+  it('disconnect bei SYNCHRONEM Stream-close emittiert sessionClosed nur EINMAL', async () => {
+    const terminal = makeTerminal();
+    const { service, emit, sm } = makeService();
+    sm.open.mockResolvedValue(terminal);
+    const info = await service.connect('h1');
+
+    // Simuliert: stream.end() (in sessions.close) loest das close-Event SYNCHRON aus,
+    // d.h. der onClose-Handler laeuft noch waehrend disconnect.
+    sm.close.mockImplementation(() => terminal.emitClose());
+
+    service.disconnect(info.id);
+
+    const closed = emit.mock.calls.filter((c) => (c[0] as { type?: string })?.type === 'sessionClosed');
+    expect(closed).toHaveLength(1);
+  });
+
+  it('exec fuehrt ein Kommando ueber den CommandRunner aus und liefert das Ergebnis', async () => {
+    const { service, getConfig, rr } = makeService();
+    rr.run.mockResolvedValue({ success: true, exitCode: 0, output: 'ok\n' });
+
+    const result = await service.exec('h1', 'uptime', 5000);
+
+    expect(getConfig).toHaveBeenCalledWith('h1');
+    expect(rr.run).toHaveBeenCalledWith('h1', config, 'uptime', 5000);
+    expect(result).toEqual({ hostId: 'h1', success: true, exitCode: 0, output: 'ok\n' });
   });
 });

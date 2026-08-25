@@ -73,6 +73,33 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 - Woerterbuecher: `apps/renderer/src/i18n/translations.ts` (flache dotted Keys, `de` + `en`).
 - **Bei jeder UI-Aenderung neue Strings in BEIDEN Sprachen pflegen.** Fehlt ein Key,
   fallback auf `en`, sonst wird der Key selbst angezeigt (sichtbarer Bug).
+- Neue UI-Features (Command Runner, Palette, Session-Farben) haben eigene Woerterbuecher
+  `i18n/de/commands.ts` + `i18n/en/commands.ts` (in `de.ts`/`en.ts` gemerged).
+
+## Quick-Win-Features (v1.3)
+
+- **Multi-Host Command Runner** (`ssh:exec`, `packages/ssh-core/src/command-runner.ts`):
+  fuehrt ein nicht-interaktives Kommando auf einer geteilten Verbindung aus (Multiplexing),
+  liefert Output + Exit-Code. UI: `features/command-runner/MultiCommandDialog.tsx` (aus
+  HostsView-Button + Command Palette oeffenbar). Reine Formatierung in `format.ts` (getestet).
+- **Clipboard-Guard** (`apps/renderer/src/lib/clipboard-guard.ts`): kopiert ein Vault-Secret
+  ueber `vault:entryGet` und entfernt es nach einer konfigurierbaren Zeit wieder aus der
+  Zwischenablage (Vault-Setting `clipboardClearSeconds`, Default 10 s, 0 = nie). Das Leeren
+  laeuft ueber `clipboard:*` im Electron-Main-Process (zuverlaessig auch ohne Renderer-Fokus).
+  Nutzt injizierbare Clipboard-/Timer-Ports fuer Tests. Jeder Copy-Vorgang fragt vorher im
+  `CopyPasswordConfirmDialog` nach.
+- **Command Palette** (Strg+P): fuzzy-Suche ueber Hosts (connect/SFTP), Tresor-Passwoerter
+  (kopieren) und Aktionen (View-Wechsel, Runner). Logik in `palette-utils.ts` (getestet),
+  Zustand in `store/palette-store.ts` + `store/workspace-store.ts`.
+- **Session-Name + Farbe**: `features/terminal/SessionBar.tsx` im Terminal-Fenster; Name wird
+  via `window:setTitle` auch im OS-Fenstertitel angezeigt. Metadaten transient in
+  `store/session-meta-store.ts` (pro sessionId, wird beim Schliessen aufgeraeumt).
+- Neue IPC-Kanaele: `ssh:exec`, `vault:entryGet`, `window:setTitle`, `clipboard:*`, `update:*`
+  (alle in `channels.ts`).
+- **GitHub-Update-Check**: `services/release-checker.ts` fragt beim App-Start nicht-blockierend
+  den letzten Release ab (Semver-Vergleich, `isNewerVersion` testbar, still bei Offline/API-Fehler).
+  Renderer fragt `update:check` einmalig pro Start ab und zeigt bei einem neueren Release den
+  `UpdateDialog` (öffnet die Release-Seite via `update:open` / `shell.openExternal`).
 - **Einstellungen** sind schema-getrieben (`packages/ipc-contracts/src/setting-definitions.ts`):
   - `UserSettings` -> `%APPDATA%/@ssh-local/user-settings.json` (geräteweit; Theme/Sprache sind schon
     auf dem Login-Screen verfuegbar via `UserSettingsDialog`).
@@ -101,14 +128,15 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
   um ohne Electron/React-Harness auszukommen.
 - **Coverage**: `pnpm test:coverage` (Turbo) erzeugt je Paket einen v8-Coverage-Bericht
   (`text`/`html`/`json-summary` in `coverage/`) und erzwingt die **Thresholds aus den jeweiligen
-  `vitest.config.ts`** (No-Regression-Ratchet). Aktuell (235 Tests): **vault ~91%**, **ssh-core
-  ~96%** (connection- + session-manager mit ssh2-Client-Mock), **sftp ~90%** (sftp-engine 100%),
-  **desktop ~62%** (ssh-service 100%, vault-service 98%, vault-ipc/Unlock-Backoff 87%, openers
-  91%, app://- und plugin://-Protokoll inkl. Path-Traversal 86-87%, windows + session-windows
-  77-93%; verbleibend: dünne IPC-Registrierung `fs/hosts/ssh/sftp/plugins.ipc` + `index.ts`-Glue),
-  **renderer ~21%** (Stores/i18n 100%, useSftpActions/SFTP-Logik, FilePane 46%,
-  VaultGate-Login 46%, Settings-Komponenten per jsdom; verbleibend: reine MUI-Präsentations-
-  Views SftpView/HostsView/Terminal/Dialoge).
+  `vitest.config.ts`** (No-Regression-Ratchet). Aktuell (287 Tests): **vault ~91%**, **ssh-core
+  ~96%** (connection-/session-/command-runner mit ssh2-Client-Mock), **sftp ~90%** (sftp-engine 100%),
+  **desktop ~61%** (ssh-service ~97%, vault-service ~96%, release-checker/Semver getestet,
+  vault-ipc/Unlock-Backoff 87%, openers 91%, app://- und plugin://-Protokoll inkl. Path-Traversal
+  86-87%, windows + session-windows 77-93%; verbleibend: dünne IPC-Registrierung
+  `fs/hosts/ssh/sftp/plugins.ipc` + `index.ts`-Glue), **renderer ~23%** (Stores/i18n 100%,
+  useSftpActions/SFTP-Logik, FilePane 46%, VaultGate-Login 46%, Settings-Komponenten + Clipboard-Guard
+  + Settings-Flow per jsdom; verbleibend: reine MUI-Präsentations-Views SftpView/HostsView/Terminal/
+  Dialoge).
   **Strategie (risikoorientiert, bewusst):** Sicherheits- und Geschäftslogik ist priorisiert
   abgedeckt; die verbleibenden Lücken sind dünne Präsentation/Glue mit geringem Risiko-Zugewinn
   bei hohem Harness-Aufwand und sind als Backlog in `docs/roadmap.md` verankert. Thresholds erst

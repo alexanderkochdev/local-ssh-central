@@ -1,10 +1,11 @@
 import {
+  CommandRunner,
   ConnectionManager,
   SessionManager,
   type HostConnectionConfig,
   type TerminalSession,
 } from '@ssh-central/ssh-core';
-import type { SessionInfo, SshEvent } from '@ssh-central/ipc-contracts';
+import type { CommandRunResult, SessionInfo, SshEvent } from '@ssh-central/ipc-contracts';
 
 export type SshEventSink = (event: SshEvent) => void;
 
@@ -15,6 +16,7 @@ export type SshEventSink = (event: SshEvent) => void;
 export class SshService {
   private readonly connections = new ConnectionManager();
   private readonly sessions = new SessionManager(this.connections);
+  private readonly runner = new CommandRunner(this.connections);
   private readonly infos = new Map<string, SessionInfo>();
   private readonly terminals = new Map<string, TerminalSession>();
 
@@ -49,6 +51,10 @@ export class SshService {
       this.emit({ type: 'sessionData', sessionId: terminal.id, data: chunk.toString('utf8') });
     });
     terminal.onClose((err) => {
+      // Bereits per disconnect geschlossen -> kein doppeltes sessionClosed/Status-Event.
+      if (!this.terminals.has(terminal.id)) {
+        return;
+      }
       const current = this.infos.get(terminal.id);
       if (current) {
         current.status = err ? 'error' : 'closed';
@@ -74,7 +80,26 @@ export class SshService {
   }
 
   disconnect(sessionId: string): void {
+    if (!this.terminals.has(sessionId)) {
+      return;
+    }
+    const current = this.infos.get(sessionId);
+    // Erst aus den Tracking-Maps nehmen, damit ein (ggf. synchron beim stream.end() im
+    // SessionManager) ausgeloestes close-Event den onClose-Guard trifft und kein zweites
+    // sessionClosed/Status emittiert.
+    this.terminals.delete(sessionId);
+    if (current) {
+      this.infos.delete(sessionId);
+    }
     this.sessions.close(sessionId);
+    // Explizites Schliessen (z.B. Terminal-Fenster zu): sessionClosed/Status SOFORT und
+    // zuverlaessig emittieren - unabhaengig davon, ob der ssh2-Stream (z.B. haengende Shell)
+    // ueberhaupt ein 'close'-Event liefert.
+    if (current) {
+      current.status = 'closed';
+      this.emit({ type: 'sessionStatus', sessionId, status: 'closed' });
+    }
+    this.emit({ type: 'sessionClosed', sessionId });
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
@@ -83,6 +108,17 @@ export class SshService {
 
   listSessions(): SessionInfo[] {
     return [...this.infos.values()];
+  }
+
+  /**
+   * Fuehrt ein einzelnes Kommando auf einem Host aus (nicht-interaktiv) und liefert
+   * Output + Exit-Code zurueck. Laeuft ausschliesslich im Main-Process (Config wird
+   * lokal aufgeloest, nie an den Renderer gesendet).
+   */
+  async exec(hostId: string, command: string, timeoutMs?: number): Promise<CommandRunResult> {
+    const config = await this.getConfig(hostId);
+    const outcome = await this.runner.run(hostId, config, command, timeoutMs);
+    return { hostId, ...outcome };
   }
 
   /** Schließt alle Sessions und Verbindungen (App-Quit / Vault-Lock). */

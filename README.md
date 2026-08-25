@@ -25,7 +25,7 @@ Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht —
 | **Lizenz** | [GPL-3.0](LICENSE) (OSI Open Source, Copyleft) |
 | **Stack** | Electron · React · Material UI · TypeScript · pnpm + Turborepo |
 | **Plattformen** | Windows 10/11 · Linux (AppImage/deb) |
-| **Status** | **v1.2.0** — Open-Source-Release (GPL-3.0) |
+| **Status** | **v1.3.0** — Open-Source-Release (GPL-3.0) |
 
 ---
 
@@ -45,8 +45,16 @@ KeePass-kompatiblen Vault.
 - **Host-Manager** — Unbegrenzt viele Hosts, Gruppen, Tags; schnelle Suche, Filter &
   Sortierung; Passwort- oder Key-Auth (Secrets referenzieren den Vault, nie Klartext).
 - **Terminal** — Parallele SSH-Sessions mit xterm.js (WebGL-beschleunigt), Tabs, Reconnect.
+  Sessions frei **benennbar + farbcodiert** (Farb-Leiste + Akzent im Fenster).
 - **SFTP File Manager** — Side-by-Side-Ansicht (lokal ↔ remote), Drag & Drop, Transfer-Queue
   mit konfigurierbarer Parallelität, Progress, Abbrechen; Dateien mit beliebigen Programmen öffnen.
+- **Multi-Host Command Runner** — ein Kommando **parallel auf mehreren Hosts** ausführen,
+  Exit-Code + Output nebeneinander vergleichen, alle Ausgaben kopieren.
+- **Command Palette (Strg+P)** — durchsuche Hosts, Tresor-Einträge und Aktionen per fuzzy-Suche.
+- **Clipboard-Guard** — kopierte Vault-Passwörter werden nach konfigurierbarer Zeit (Standard 10 s)
+  automatisch aus der Zwischenablage entfernt — mit expliziter Bestätigung vor dem Kopieren.
+- **Update-Check** — prüft beim Start nicht-blockierend auf neue GitHub-Releases und erinnert an
+  ein Update.
 - **Schema-getriebenes Settings-System** — `UserSettings` (geräteweit) + `VaultSettings`
   (pro `.kdbx`, portabel), rendern über generische UI-Bausteine.
 - **Plugins** — ZIP-installierbare Plugins (UI, IPC, Dialoge, Secrets, Persistenz,

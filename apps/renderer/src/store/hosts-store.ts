@@ -4,6 +4,8 @@ import type { Host, HostUpsertRequest } from '@ssh-central/ipc-contracts';
 interface HostsState {
   hosts: Host[];
   loading: boolean;
+  /** True, sobald mindestens ein Ladevorgang abgeschlossen wurde (verhindert Load-Schleifen). */
+  loaded: boolean;
   load: () => Promise<void>;
   save: (request: HostUpsertRequest) => Promise<Host>;
   remove: (id: string) => Promise<void>;
@@ -13,15 +15,16 @@ interface HostsState {
 export const useHostsStore = create<HostsState>((set, get) => ({
   hosts: [],
   loading: false,
+  loaded: false,
 
   load: async () => {
     set({ loading: true });
     try {
       const hosts = await window.api.hosts.list();
-      set({ hosts, loading: false });
+      set({ hosts, loading: false, loaded: true });
     } catch (error) {
       console.error('Hosts laden fehlgeschlagen:', error);
-      set({ loading: false });
+      set({ loading: false, loaded: true });
     }
   },
 

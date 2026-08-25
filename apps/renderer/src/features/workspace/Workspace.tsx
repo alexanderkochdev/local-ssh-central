@@ -9,6 +9,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Box from '@mui/material/Box';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import LockIcon from '@mui/icons-material/Lock';
+import SearchIcon from '@mui/icons-material/Search';
 import { HostsView } from '../hosts/HostsView.js';
 import { VaultView } from '../vault/VaultView.js';
 import { ChangePasswordDialog } from '../vault/ChangePasswordDialog.js';
@@ -18,9 +19,13 @@ import { PluginsDialog } from '../plugins/PluginsDialog.js';
 import { PluginPanel } from '../plugins/PluginPanel.js';
 import { PluginDialogHost } from '../plugins/PluginDialogHost.js';
 import { SystemBar } from '../../components/SystemBar.js';
+import { CommandPalette } from '../command-palette/CommandPalette.js';
+import { MultiCommandDialog } from '../command-runner/MultiCommandDialog.js';
 import { useVaultStore } from '../../store/vault-store.js';
 import { usePluginsStore } from '../../store/plugins-store.js';
 import { useSettingsStore } from '../../store/settings-store.js';
+import { useWorkspaceStore } from '../../store/workspace-store.js';
+import { usePaletteStore } from '../../store/palette-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 
 /**
@@ -30,7 +35,9 @@ import { useTranslation } from '../../i18n/useTranslation.js';
  */
 export function Workspace() {
   const { t } = useTranslation();
-  const [view, setView] = useState<string>('hosts');
+  const view = useWorkspaceStore((s) => s.view);
+  const setView = useWorkspaceStore((s) => s.setView);
+  const openPalette = usePaletteStore((s) => s.openPalette);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [userSettingsOpen, setUserSettingsOpen] = useState(false);
@@ -83,6 +90,9 @@ export function Workspace() {
             ))}
           </Tabs>
           <Box sx={{ flexGrow: 1 }} />
+          <IconButton title={`${t('palette.placeholder')} (Ctrl+P)`} onClick={openPalette}>
+            <SearchIcon />
+          </IconButton>
           <IconButton title={t('menu.options')} onClick={(e) => setMenuAnchor(e.currentTarget)}>
             <MoreVertIcon />
           </IconButton>
@@ -136,6 +146,8 @@ export function Workspace() {
       <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
       <PluginsDialog open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
       <PluginDialogHost />
+      <CommandPalette />
+      <MultiCommandDialog />
     </Box>
   );
 }

@@ -130,6 +130,14 @@ export class VaultService {
     await this.vault.deleteEntry(id);
   }
 
+  /**
+   * Holt das Passwort eines Eintrags - NUR fuer einen expliziten Copy-Vorgang des Users
+   * (Clipboard-Guard). Das Secret verlaeuft dabei kurzzeitig an den Renderer.
+   */
+  getEntryPassword(id: string): string | undefined {
+    return this.vault.getSecret(id, 'password');
+  }
+
   // ------------------------------------------------------------- SSH-Keychain
 
   async generateKey(request: GenerateSshKeyRequest): Promise<SshKeyResult> {

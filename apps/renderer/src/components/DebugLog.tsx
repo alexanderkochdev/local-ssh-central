@@ -20,7 +20,14 @@ export function useDebugLog() {
 }
 
 /** Debug-Panel oben rechts im Fenster - listet Lade-/Verbindungs-Schritte zeilenweise auf. */
-export function DebugLog({ entries }: { entries: DebugEntry[] }) {
+export function DebugLog({
+  entries,
+  accentColor,
+}: {
+  entries: DebugEntry[];
+  /** Optionaler Session-Farb-Akzent (linke Border), z.B. fuer die Verbindungs-Statusleiste. */
+  accentColor?: string;
+}) {
   const [open, setOpen] = useState(true);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +68,7 @@ export function DebugLog({ entries }: { entries: DebugEntry[] }) {
         borderRadius: 1,
         p: 1,
         boxShadow: 2,
+        borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
       }}
       ref={boxRef}
     >

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
@@ -17,6 +18,59 @@ interface SettingComponentProps {
   onChange: (value: SettingValue) => void;
   /** i18n-Uebersetzer (t = uebersetze i18n-Key). */
   t: (key: string) => string;
+}
+
+/**
+ * Zahlen-Input mit lokalem String-State: Der User kann frei tippen (auch Zwischenwerte wie
+ * leeres Feld), der Wert wird erst bei Blur/Enter committed. Das verhindert das bekannte
+ * "feste 0 / nicht editierbar"-Problem controlled Number-Inputs, bei dem jeder Tastendruck
+ * sofort auf `Number(value) || 0` zurueckgesetzt wurde.
+ */
+function NumberSettingInput({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+
+  // Externer Wert (z.B. nach Commit oder Clamp im Main) -> lokales Feld synchron halten.
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  function commit() {
+    const n = Number(text);
+    if (!Number.isFinite(n)) {
+      setText(String(value));
+      return;
+    }
+    onChange(n);
+  }
+
+  return (
+    <TextField
+      type="number"
+      value={text}
+      onChange={(event) => setText(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          commit();
+        }
+      }}
+      size="small"
+      fullWidth
+      slotProps={{ htmlInput: { min, max, step } }}
+    />
+  );
 }
 
 /**
@@ -50,15 +104,12 @@ export function SettingComponent({ definition, value, onChange, t }: SettingComp
 
       case 'number':
         return (
-          <TextField
-            type="number"
+          <NumberSettingInput
             value={Number(value) || 0}
-            onChange={(event) => onChange(Number(event.target.value) || 0)}
-            size="small"
-            fullWidth
-            slotProps={{
-              htmlInput: { min: definition.min, max: definition.max, step: definition.step },
-            }}
+            min={definition.min}
+            max={definition.max}
+            step={definition.step}
+            onChange={onChange}
           />
         );
 

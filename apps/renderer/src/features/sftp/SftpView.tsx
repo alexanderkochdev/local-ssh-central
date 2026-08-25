@@ -125,6 +125,9 @@ export function SftpView({ initialHostId }: SftpViewProps) {
       const { handle: h, cwd } = await window.api.sftp.open({ hostId: host });
       add(`SFTP-Session erstellt: ${h}`);
       add(`Remote-Startpfad: ${cwd || '/'}`);
+      // Handle an den Main-Process melden: Er schliesst die SFTP-Session zuverlaessig
+      // beim Fensterschliessen (React-Unmount-Cleanup laeuft dort nicht zuverlaessig).
+      window.api.windows.attachSftp(h);
       setHandle(h);
       handleRef.current = h;
       setLocal(emptyPane(''));

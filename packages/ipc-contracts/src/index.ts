@@ -7,4 +7,5 @@ export * from './fs.js';
 export * from './plugins.js';
 export * from './setting-definitions.js';
 export * from './system.js';
+export * from './update.js';
 export * from './api.js';

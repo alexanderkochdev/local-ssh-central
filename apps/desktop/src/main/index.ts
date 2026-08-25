@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
+import { app, dialog, ipcMain, BrowserWindow, clipboard, net, shell } from 'electron';
 import log from 'electron-log/main';
 import { join } from 'node:path';
 import {
@@ -17,6 +17,7 @@ import { VaultSettings } from './services/vault-settings.js';
 import { KdbxVaultSettingsStorage } from './services/kdbx-vault-settings-storage.js';
 import { SshService } from './services/ssh-service.js';
 import { SftpService } from './services/sftp-service.js';
+import { ReleaseChecker } from './services/release-checker.js';
 import { resolveConnectionConfig } from './services/credential-resolver.js';
 import { collectSystemStats, setPingTarget } from './services/system-stats.js';
 import { registerIpc } from './ipc/router.js';
@@ -44,6 +45,11 @@ const services = {} as AppServices;
 let mainWindow: BrowserWindow | null = null;
 let sessionWindows: SessionWindowManager | null = null;
 let plugins: PluginManager | null = null;
+
+// GitHub-Update-Check beim App-Start (nicht-blockierend). Fetch via Electron net.fetch.
+const releaseChecker = new ReleaseChecker((url) =>
+  net.fetch(url, { headers: { 'User-Agent': 'ssh-central-update-check' } }),
+);
 
 // Schema-getriebene Settings (ipc-contracts).
 // - UserSettings: geräteweit in %APPDATA%/@ssh-local (vor dem Unlock verfügbar)
@@ -231,6 +237,44 @@ app.whenReady().then(async () => {
     sessionWindows?.open(request.kind, request.id);
   });
 
+  // Benannte Session/Tab: OS-Fenstertitel des aufrufenden Fensters setzen.
+  ipcMain.on(IpcChannels.windowSetTitle, (event, title: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && typeof title === 'string' && title.length > 0 && title.length <= 200) {
+      win.setTitle(title);
+    }
+  });
+
+  // Zuverlaessige Session-Trennung beim Fensterschliessen: Der Renderer meldet eine
+  // selbst-erzeugte Ressource (SSH-Session oder SFTP-Handle) an sein Fenster. React-Unmount-
+  // Cleanups laufen beim Schliessen eines Electron-Fensters nicht zuverlaessig -> hier im
+  // Main-Process am `closed`-Event.
+  const attachWindowCleanup = (event: Electron.IpcMainEvent, dispose: () => void): void => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) {
+      return;
+    }
+    win.on('closed', dispose);
+  };
+
+  ipcMain.on(IpcChannels.windowAttachSession, (event, sessionId: string) => {
+    if (typeof sessionId !== 'string' || sessionId.length === 0) {
+      return;
+    }
+    attachWindowCleanup(event, () => {
+      void services.ssh.disconnect(sessionId);
+    });
+  });
+
+  ipcMain.on(IpcChannels.windowAttachSftp, (event, handle: string) => {
+    if (typeof handle !== 'string' || handle.length === 0) {
+      return;
+    }
+    attachWindowCleanup(event, () => {
+      services.sftp.close(handle);
+    });
+  });
+
   // Einstellungen, die im Main wirken.
   ipcMain.on(IpcChannels.settingsAutoLock, (_event, minutes: number) => {
     autoLockMs = minutes > 0 ? minutes * 60_000 : 0;
@@ -281,6 +325,24 @@ app.whenReady().then(async () => {
 
   // System-Ressourcen fuer die Statusleiste (CPU, RAM, GPU, Speicher).
   ipcMain.handle(IpcChannels.systemGetStats, () => collectSystemStats());
+
+  // Zwischenablage ueber Electron-Main: write/read funktionieren unabhaengig vom
+  // Renderer-Fokus. Der Clipboard-Guard nutzt das, um kopierte Passwoerter zuverlaessig
+  // nach der konfigurierten Zeit wieder aus der Zwischenablage zu entfernen.
+  ipcMain.handle(IpcChannels.clipboardWrite, (_event, text: string) => {
+    if (typeof text === 'string') {
+      clipboard.writeText(text);
+    }
+  });
+  ipcMain.handle(IpcChannels.clipboardRead, () => clipboard.readText());
+
+  // GitHub-Update-Check (beim App-Start vom Renderer abgefragt, nicht-blockierend).
+  ipcMain.handle(IpcChannels.updateCheck, () => releaseChecker.check(app.getVersion()));
+  ipcMain.on(IpcChannels.updateOpen, (_event, url: string) => {
+    if (typeof url === 'string' && /^https:\/\//.test(url)) {
+      void shell.openExternal(url);
+    }
+  });
 
   mainWindow = createMainWindow();
   // Jede Renderer-Ipc-Aktivität setzt den Auto-Lock-Timer zurück.

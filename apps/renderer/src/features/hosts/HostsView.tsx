@@ -14,11 +14,13 @@ import TerminalIcon from '@mui/icons-material/Terminal';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CircularProgress from '@mui/material/CircularProgress';
 import { EmptyState } from '@ssh-central/ui';
 import { Virtuoso } from 'react-virtuoso';
 import type { Host } from '@ssh-central/ipc-contracts';
 import { useHostsStore } from '../../store/hosts-store.js';
+import { useCommandRunnerStore } from '../../store/command-runner-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { SortControl, type SortOption, type SortState } from '../../components/sorting/SortControl.js';
 import { useSortedList } from '../../components/sorting/useSortedList.js';
@@ -44,6 +46,7 @@ const HOST_SORT_ACCESSORS: Record<HostSortKey, (host: Host) => unknown> = {
 export function HostsView() {
   const { t } = useTranslation();
   const { hosts, loading, load, remove } = useHostsStore();
+  const openRunner = useCommandRunnerStore((s) => s.openRunner);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Host | null>(null);
   const [sort, setSort] = useState<SortState<HostSortKey> | null>(null);
@@ -101,6 +104,16 @@ export function HostsView() {
         <Box sx={{ flexGrow: 1 }} />
         <FilterControl options={sortOptions} filter={filter} onChange={setFilter} />
         <SortControl options={sortOptions} sort={sort} onChange={setSort} />
+        <Button
+          startIcon={<PlayArrowIcon />}
+          variant="outlined"
+          size="small"
+          onClick={openRunner}
+          disabled={hosts.length === 0}
+          title={t('commands.openRunner')}
+        >
+          {t('commands.run')}
+        </Button>
         <Button startIcon={<AddIcon />} variant="contained" size="small" onClick={openCreate}>
           {t('hosts.add')}
         </Button>
@@ -150,6 +163,7 @@ export function HostsView() {
                   <ListItemButton onClick={() => connect(host)}>
                     <ListItemText
                       primary={host.name}
+                      slotProps={{ secondary: { component: 'div' } }}
                       secondary={
                         <Box component="span" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pt: 0.5 }}>
                           <Typography component="span" variant="body2" color="text.secondary">

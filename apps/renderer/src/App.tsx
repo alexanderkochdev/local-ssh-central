@@ -5,8 +5,11 @@ import { TerminalWindow } from './features/terminal/TerminalWindow.js';
 import { SftpWindow } from './features/sftp/SftpWindow.js';
 import { NotificationBridge } from './components/NotificationBridge.js';
 import { NotificationsContainer } from './components/NotificationsContainer.js';
+import { UpdateDialog } from './features/update/UpdateDialog.js';
 import { useVaultStore } from './store/vault-store.js';
 import { useSettingsStore } from './store/settings-store.js';
+import { usePaletteStore } from './store/palette-store.js';
+import type { UpdateCheckResult } from '@ssh-central/ipc-contracts';
 
 type Route = { kind: 'terminal' | 'sftp'; id: string; sessionId?: string } | null;
 
@@ -32,6 +35,22 @@ export default function App() {
   const init = useVaultStore((state) => state.init);
   const initSettings = useSettingsStore((state) => state.init);
   const [route] = useState<Route>(parseHash);
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
+
+  // Globale Command-Palette: Strg+P / Strg+K im Hauptfenster (nicht in Session-Fenstern).
+  useEffect(() => {
+    if (route) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        usePaletteStore.getState().toggle();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [route]);
 
   // Auf Lock-/Auto-Lock-Events vom Main reagieren.
   useEffect(() => {
@@ -42,6 +61,27 @@ export default function App() {
   useEffect(() => {
     return initSettings();
   }, [initSettings]);
+
+  // GitHub-Update-Check (einmalig pro Start, nur im Hauptfenster, nicht-blockierend).
+  useEffect(() => {
+    if (route) {
+      return;
+    }
+    let cancelled = false;
+    window.api.update
+      .check()
+      .then((result) => {
+        if (!cancelled && result.available && result.latest) {
+          setUpdateResult(result);
+        }
+      })
+      .catch(() => {
+        // Offline/API-Fehler -> still ignorieren (kein Update-Noise).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [route]);
 
   if (route?.kind === 'terminal') {
     return <TerminalWindow hostId={route.id} sessionId={route.sessionId} />;
@@ -55,6 +95,7 @@ export default function App() {
       <NotificationBridge />
       {status === 'unlocked' ? <Workspace /> : <VaultGate />}
       <NotificationsContainer />
+      <UpdateDialog result={updateResult} onClose={() => setUpdateResult(null)} />
     </>
   );
 }

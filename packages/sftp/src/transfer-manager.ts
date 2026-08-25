@@ -121,7 +121,8 @@ export class TransferManager {
       if (signal.aborted) {
         this.finalize(task, 'canceled');
       } else {
-        this.update(task, 'done');
+        // done: finalize raeumt den Transfer aus infoById auf (kein Memory-Wachstum ueber viele Transfers).
+        this.finalize(task, 'done');
       }
     } catch (err) {
       if (signal.aborted) {

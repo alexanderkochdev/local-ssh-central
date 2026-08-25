@@ -4,6 +4,64 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.3.0] - 2026-08-25
+
+### Added
+- **Quick Wins (Produktivität)**
+  - **Multi-Host Command Runner** (`ssh:exec` + `packages/ssh-core/src/command-runner.ts`):
+    führt ein Kommando **parallel auf mehreren Hosts** aus, zeigt Exit-Code + Output nebeneinander
+    und erlaubt "Alle Ausgaben kopieren". Aus der HostsView-Toolbar und der Command Palette.
+  - **Clipboard-Guard**: kopierte Vault-Passwörter werden nach konfigurierbarer Zeit automatisch
+    aus der Zwischenablage entfernt (nur wenn unverändert). Neue Vault-Setting `clipboardClearSeconds`
+    (Standard **10 s**, 0 = nie). Läuft über Electron-Main (`clipboard:*`) und funktioniert damit
+    zuverlässig auch ohne Renderer-Fokus.
+  - **Copy-Bestätigung**: `CopyPasswordConfirmDialog` fragt vor jedem Passwort-Kopieren (Warnung:
+    Klartext in der Zwischenablage, zeigt die eingestellte Zeit).
+  - **Command Palette (Strg+P)**: fuzzy-Suche über Hosts (Terminal/SFTP öffnen), Tresor-Passwörter
+    (kopieren) und Aktionen (View-Wechsel, Multi-Host-Runner).
+  - **Session-Name + Farb-Anker**: Terminal-Sessions frei benennbar + farbcodiert
+    (`window:setTitle`, SessionBar, durchgehende Farb-Leiste links, Debug-Log-Akzent).
+- **GitHub-Update-Check**: nicht-blockierender Check beim App-Start
+  (`services/release-checker.ts`, `update:check`/`update:open`). Reiner Semver-Vergleich
+  (inkl. Test-Builds), still bei Offline/API-Fehler. Dialog erinnert einmalig pro Start
+  an ein neueres Release und öffnet die Release-Seite.
+- **Test-Suite auf 287 Tests ausgebaut**: ssh-core (connection-/session-/command-runner mit
+  ssh2-Mock), sftp (sftp-engine 100%), Desktop (Services, Release-Checker, Protokolle inkl.
+  Path-Traversal, IPC/Unlock-Backoff, Fensterverwaltung, Session-Lifecycle), Renderer (Stores,
+  i18n-Parität, SFTP-Logik, VaultGate, FilePane, SystemBar, Clipboard-Guard, Settings-Flow).
+
+### Changed
+- **Zwischenablage über Electron-Main** statt `navigator.clipboard`: das automatische Leeren
+  kopierter Passwörter funktioniert zuverlässig, auch wenn das Fenster den Fokus verloren hat.
+- **Zahlen-Settings editierbar**: neues `NumberSettingInput` (lokaler String-State, Commit bei
+  Blur/Enter) behebt das "fest bei 0 / nicht editierbar"-Problem; `sanitizeSettings` koerziert
+  Zahl-Settings robust (String → Number, Clamp).
+- **Session-Lifecycle im Main-Process**: neue IPC `window:attachSession`/`window:attachSftp` —
+  SSH-Sessions und SFTP-Handles werden beim Schließen des Fensters zuverlässig beendet
+  (React-Unmount-Cleanup läuft in Electron beim Fensterschließen nicht zuverlässig).
+- **`disconnect` emittiert `sessionClosed` sofort**: "Session geschlossen"-Toast erscheint direkt
+  beim Fenster-Schließen statt erst beim Vault-Close; dedupliziert gegen Doppel-Event.
+- Neue IPC-Kanäle: `ssh:exec`, `vault:entryGet`, `window:setTitle`, `window:attachSession`,
+  `window:attachSftp`, `clipboard:write`/`read`, `update:check`/`open`.
+
+### Fixed
+- **Terminal-/SFTP-Fenster**: Sessions/SFTP-Verbindungen blieben beim Schließen des Fensters im
+  Hintergrund offen (React-Unmount-Cleanup unzuverlässig) → jetzt main-seitig über
+  `window:attachSession`/`window:attachSftp` sauber getrennt.
+- **"Session geschlossen"-Toast** erschien erst beim Vault-Close statt beim Fenster-Schließen;
+  `disconnect` emittiert das Event jetzt sofort, und ein Doppel-Toast wird verhindert.
+- **Zahlen-Input in den Settings** war bei Wert `0` nicht editierbar ("fest bei 0"); die neue
+  `NumberSettingInput`-Komponente behebt das für alle Zahl-Settings.
+- **HTML-Nesting**: `<div>` in `<p>` in der HostsView (Chips im `secondary`) → `ListItemText`
+  `secondary` wird jetzt als `<div>` gerendert (Dev-only-Warnung entfernt).
+- **SFTP-Transfers**: erledigte Transfers werden aus der TransferQueue aufgeräumt
+  (kein schleichendes Memory-Wachstum über lange Sessions).
+
+### Security
+- **Clipboard-Guard**: Vault-Passwörter werden nicht dauerhaft als Klartext in der Zwischenablage
+  belassen, sondern nach konfigurierbarer Zeit (Standard 10 s) automatisch entfernt — mit
+  expliziter Bestätigung vor jedem Kopieren.
+
 ## [1.2.0] - 2026-08-24
 
 ### Added

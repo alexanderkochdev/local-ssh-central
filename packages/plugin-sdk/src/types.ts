@@ -21,6 +21,8 @@ export interface VaultSettingsValues {
   autoLockMinutes: number;
   sftpConcurrency: number;
   defaultOpener: string;
+  /** Sekunden, nach denen ein kopiertes Passwort aus der Zwischenablage entfernt wird (0 = nie). */
+  clipboardClearSeconds: number;
   fileOpeners: Record<string, string>;
 }
 

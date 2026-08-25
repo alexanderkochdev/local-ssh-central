@@ -14,11 +14,16 @@ import AddIcon from '@mui/icons-material/Add';
 import KeyIcon from '@mui/icons-material/Key';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CircularProgress from '@mui/material/CircularProgress';
 import { EmptyState } from '@ssh-central/ui';
 import { Virtuoso } from 'react-virtuoso';
 import type { VaultEntrySummary } from '@ssh-central/ipc-contracts';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { useAppDispatch } from '../../store/index.js';
+import { pushNotification } from '../../store/notificationsSlice.js';
+import { useSettingsStore } from '../../store/settings-store.js';
+import { clipboardGuard } from '../../lib/clipboard-guard.js';
 import { SortControl, type SortOption, type SortState } from '../../components/sorting/SortControl.js';
 import { useSortedList } from '../../components/sorting/useSortedList.js';
 import { FilterControl, type FilterState } from '../../components/filtering/FilterControl.js';
@@ -26,6 +31,7 @@ import { useFilteredList } from '../../components/filtering/useFilteredList.js';
 import { PasswordEntryDialog } from './PasswordEntryDialog.js';
 import { KeyGenerateDialog } from './KeyGenerateDialog.js';
 import { KeyImportDialog } from './KeyImportDialog.js';
+import { CopyPasswordConfirmDialog } from './CopyPasswordConfirmDialog.js';
 
 type TresorTab = 'passwords' | 'keys';
 
@@ -50,11 +56,16 @@ const KEY_SORT_ACCESSORS: Record<KeySortKey, (entry: VaultEntrySummary) => unkno
  */
 export function VaultView() {
   const { t } = useTranslation();
+  const dispatch = useAppDispatch();
+  // Aus den Vault-Settings: Frist (in Sekunden), nach der ein kopiertes Passwort wieder
+  // aus der Zwischenablage entfernt wird (0 = nie). Default 10 s.
+  const clipboardClearSeconds = useSettingsStore((s) => s.vault.clipboardClearSeconds);
   const [tab, setTab] = useState<TresorTab>('passwords');
   const [entries, setEntries] = useState<VaultEntrySummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<VaultEntrySummary | null>(null);
+  const [copyTarget, setCopyTarget] = useState<VaultEntrySummary | null>(null);
   const [genOpen, setGenOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [passwordSort, setPasswordSort] = useState<SortState<PasswordSortKey> | null>(null);
@@ -78,6 +89,36 @@ export function VaultView() {
   async function removeEntry(id: string) {
     await window.api.vault.entries.remove({ id });
     await refresh();
+  }
+
+  /**
+   * Kopiert das Passwort eines Eintrags mit Clipboard-Guard (Auto-Clear nach 30 s).
+   * Wird erst nach der Sicherheits-Bestaetigung im CopyPasswordConfirmDialog aufgerufen.
+   */
+  async function performCopy(entry: VaultEntrySummary) {
+    try {
+      const password = await window.api.vault.entries.get({ id: entry.id });
+      if (!password) {
+        dispatch(
+          pushNotification({ type: 'error', title: t('clipboard.copyFailed'), message: 'Kein Passwort.' }),
+        );
+        return;
+      }
+      await clipboardGuard.copy(password, clipboardClearSeconds * 1000);
+      const title =
+        clipboardClearSeconds > 0
+          ? t('clipboard.copied').replace('{seconds}', String(clipboardClearSeconds))
+          : t('clipboard.copiedNever');
+      dispatch(pushNotification({ type: 'success', title }));
+    } catch (err) {
+      dispatch(
+        pushNotification({
+          type: 'error',
+          title: t('clipboard.copyFailed'),
+          message: (err as Error).message,
+        }),
+      );
+    }
   }
 
   const passwords = entries.filter((e) => !e.hasKeyData);
@@ -152,6 +193,9 @@ export function VaultView() {
                     disablePadding
                     secondaryAction={
                       <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <IconButton size="small" title={t('action.copy')} onClick={() => setCopyTarget(entry)}>
+                          <ContentCopyIcon fontSize="small" />
+                        </IconButton>
                         <IconButton size="small" title={t('action.edit')} onClick={() => { setEditingEntry(entry); setPwOpen(true); }}>
                           <EditIcon fontSize="small" />
                         </IconButton>
@@ -209,6 +253,20 @@ export function VaultView() {
       />
       <KeyGenerateDialog open={genOpen} onClose={() => setGenOpen(false)} onSaved={() => { setGenOpen(false); void refresh(); }} />
       <KeyImportDialog open={importOpen} onClose={() => setImportOpen(false)} onSaved={() => { setImportOpen(false); void refresh(); }} />
+
+      <CopyPasswordConfirmDialog
+        open={Boolean(copyTarget)}
+        entryName={copyTarget?.title || copyTarget?.userName || undefined}
+        seconds={clipboardClearSeconds}
+        onClose={() => setCopyTarget(null)}
+        onConfirm={() => {
+          const entry = copyTarget;
+          setCopyTarget(null);
+          if (entry) {
+            void performCopy(entry);
+          }
+        }}
+      />
     </Box>
   );
 }

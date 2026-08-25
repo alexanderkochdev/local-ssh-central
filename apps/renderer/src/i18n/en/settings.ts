@@ -7,6 +7,7 @@ export const settings: Record<string, string> = {
   'settings.light': 'Light',
   'settings.terminalFontSize': 'Terminal font size',
   'settings.autoLock': 'Auto-lock after inactivity',
+  'settings.clipboardClearSeconds': 'Clear copied password after',
   'settings.never': 'Never',
   'settings.minutes': 'minutes',
   'settings.sftpConcurrency': 'Parallel SFTP transfers',
@@ -30,6 +31,8 @@ export const settings: Record<string, string> = {
   'settings.terminalFontSize.description': 'Terminal font size (8–24).',
   'settings.showDebug.description': 'Show debug steps while loading terminal/SFTP.',
   'settings.autoLock.description': 'Locks the vault after this inactivity (0 = never).',
+  'settings.clipboardClearSeconds.description':
+    'Seconds after which a copied vault password is automatically removed from the clipboard (0 = never).',
   'settings.sftpConcurrency.description': 'Number of parallel SFTP transfers (1–16).',
   'settings.defaultOpener.description': 'Default program to open files.',
   'settings.language.de': 'German',

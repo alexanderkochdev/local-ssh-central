@@ -145,6 +145,8 @@ export interface VaultSettingsValues {
   autoLockMinutes: number;
   sftpConcurrency: number;
   defaultOpener: string;
+  /** Sekunden, nach denen ein kopiertes Vault-Passwort automatisch aus der Zwischenablage entfernt wird (0 = nie). */
+  clipboardClearSeconds: number;
   /** Dateiendung (ohne Punkt, klein) -> Opener-ID. Sonderfall: wird nicht ueber das generische Schema gerendert. */
   fileOpeners: Record<string, string>;
 }
@@ -153,6 +155,7 @@ export const VAULT_SETTINGS_DEFAULTS: VaultSettingsValues = {
   autoLockMinutes: 15,
   sftpConcurrency: 3,
   defaultOpener: 'default',
+  clipboardClearSeconds: 10,
   fileOpeners: {},
 };
 
@@ -187,6 +190,16 @@ export const VAULT_SETTINGS_DEFINITIONS: SettingDefinition[] = [
       { value: 'default', label: 'sftp.systemDefault' },
       { value: '__ask__', label: 'settings.alwaysAsk' },
     ],
+  },
+  {
+    key: 'clipboardClearSeconds',
+    type: 'number',
+    label: 'settings.clipboardClearSeconds',
+    description: 'settings.clipboardClearSeconds.description',
+    default: VAULT_SETTINGS_DEFAULTS.clipboardClearSeconds,
+    min: 0, // 0 = nie leeren
+    max: 300,
+    step: 5,
   },
 ];
 
@@ -226,7 +239,9 @@ export const VAULT_SETTINGS_SECTIONS: SettingSection[] = [
     id: 'security',
     title: 'settings.section.security',
     description: 'settings.section.security.description',
-    settings: VAULT_SETTINGS_DEFINITIONS.filter((def) => def.key === 'autoLockMinutes'),
+    settings: VAULT_SETTINGS_DEFINITIONS.filter((def) =>
+      ['autoLockMinutes', 'clipboardClearSeconds'].includes(def.key),
+    ),
   },
   {
     id: 'transfer',
@@ -254,10 +269,15 @@ export function sanitizeSettings(
       continue;
     }
     const value = patch[def.key];
-    if (def.type === 'number' && typeof value === 'number') {
-      const min = def.min ?? Number.NEGATIVE_INFINITY;
-      const max = def.max ?? Number.POSITIVE_INFINITY;
-      result[def.key] = Math.min(max, Math.max(min, value));
+    if (def.type === 'number') {
+      // Zahl-Settings robust: auch als String ankommende Werte (z.B. aus Alt-Daten)
+      // in echte Zahlen koerzieren und clammen. Nicht-finite Werte -> vorherigen behalten.
+      const numeric = typeof value === 'number' ? value : Number(value);
+      if (Number.isFinite(numeric)) {
+        const min = def.min ?? Number.NEGATIVE_INFINITY;
+        const max = def.max ?? Number.POSITIVE_INFINITY;
+        result[def.key] = Math.min(max, Math.max(min, numeric));
+      }
       continue;
     }
     const invalid = def.validate?.(value as SettingValue);

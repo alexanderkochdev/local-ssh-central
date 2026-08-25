@@ -46,7 +46,7 @@ function makeManager(dir: string, override?: Partial<PluginServices>): PluginMan
       pingTarget: '8.8.8.8',
       showSystemBar: true,
     }),
-    getVaultSettings: () => ({ autoLockMinutes: 15, sftpConcurrency: 3, defaultOpener: 'default', fileOpeners: {} }),
+    getVaultSettings: () => ({ autoLockMinutes: 15, sftpConcurrency: 3, defaultOpener: 'default', clipboardClearSeconds: 10, fileOpeners: {} }),
     openTerminal: async () => ({ sessionId: 's' }),
     writeTerminal: async () => {},
     resizeTerminal: async () => {},

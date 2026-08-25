@@ -4,7 +4,7 @@ import { render, act } from '@testing-library/react';
 import type { Host, VaultSettingsValues } from '@ssh-central/ipc-contracts';
 import { joinLocalPath, useSftpActions, type SftpActions } from '../src/features/sftp/useSftpActions.js';
 
-const vault: VaultSettingsValues = { autoLockMinutes: 15, sftpConcurrency: 3, defaultOpener: 'default', fileOpeners: {} };
+const vault: VaultSettingsValues = { autoLockMinutes: 15, sftpConcurrency: 3, defaultOpener: 'default', clipboardClearSeconds: 10, fileOpeners: {} };
 
 const localFile = { name: 'a.txt', path: '/l/a.txt', isDirectory: false };
 const remoteFile = { name: 'a.txt', path: '/r/a.txt', isDirectory: false };

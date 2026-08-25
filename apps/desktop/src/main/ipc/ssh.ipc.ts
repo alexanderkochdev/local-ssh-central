@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { IpcChannels } from '@ssh-central/ipc-contracts';
 import type {
+  CommandRunRequest,
   ConnectRequest,
   DisconnectRequest,
   ResizeRequest,
@@ -32,4 +33,8 @@ export function registerSshIpc(services: AppServices): void {
   );
 
   ipcMain.handle(IpcChannels.sshListSessions, () => services.ssh.listSessions());
+
+  ipcMain.handle(IpcChannels.sshExec, (_event, request: CommandRunRequest) =>
+    services.ssh.exec(request.hostId, request.command, request.timeoutMs),
+  );
 }

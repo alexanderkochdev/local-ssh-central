@@ -4,7 +4,9 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { EmptyState } from '@ssh-central/ui';
 import { DebugLog, useDebugLog } from '../../components/DebugLog.js';
 import { useSettingsStore } from '../../store/settings-store.js';
+import { useSessionMetaStore, DEFAULT_SESSION_COLOR } from '../../store/session-meta-store.js';
 import { TerminalSession } from './TerminalSession.js';
+import { SessionBar } from './SessionBar.js';
 
 interface TerminalWindowProps {
   hostId: string;
@@ -25,6 +27,18 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
   const sessionIdRef = useRef<string | null>(presetSession ?? null);
   const { entries, add } = useDebugLog();
   const user = useSettingsStore((s) => s.user);
+  // Session-Farbe als visueller Anker: linke Leiste + Debug-Log-Akzent (Primitiv-Selektor).
+  const sessionColor = useSessionMetaStore((s) =>
+    sessionId ? (s.metas[sessionId]?.color ?? DEFAULT_SESSION_COLOR) : DEFAULT_SESSION_COLOR,
+  );
+
+  // Session-Metadaten (Name/Farbe) beim Schliessen des Fensters aufraeumen.
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+    return () => useSessionMetaStore.getState().remove(sessionId);
+  }, [sessionId]);
 
   useEffect(() => {
     // Bestehende (geteilte) Session: nur anhaengen, keine neue Verbindung aufbauen.
@@ -50,6 +64,9 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
         if (!cancelled) {
           sessionIdRef.current = id;
           setSessionId(id);
+          // Session an den Main-Process melden: Er trennt sie zuverlaessig beim
+          // Fensterschliessen (React-Unmount-Cleanup laeuft dort nicht zuverlaessig).
+          window.api.windows.attachSession(id);
           add(`Session erstellt: ${id}`);
           add('Verbunden.');
         }
@@ -93,8 +110,16 @@ export function TerminalWindow({ hostId, sessionId: presetSession }: TerminalWin
   }
 
   return (
-    <Box sx={{ height: '100%', width: '100%', bgcolor: '#0d1117' }}>
-      <TerminalSession sessionId={sessionId} fontSize={user.terminalFontSize} />
+    <Box sx={{ height: '100%', width: '100%', bgcolor: '#0d1117', display: 'flex', flexDirection: 'column' }}>
+      {sessionId && <SessionBar sessionId={sessionId} />}
+      <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        {/* Farb-Anker: durchgehende Leiste links in der Session-Farbe */}
+        <Box sx={{ width: 4, flexShrink: 0, bgcolor: sessionColor }} />
+        <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          {user.showDebugLog && <DebugLog entries={entries} accentColor={sessionColor} />}
+          <TerminalSession sessionId={sessionId} fontSize={user.terminalFontSize} />
+        </Box>
+      </Box>
     </Box>
   );
 }

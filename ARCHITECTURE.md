@@ -98,15 +98,17 @@ Zentrale `interface` je Domäne, implementiert vom Main und von `window.api` (Pr
 
 | Domäne | Kanal | Request → Response |
 |--------|-------|--------------------|
-| Vault | `vault:*` | `unlock`, `lock`, `status`, `create`, `changeMasterPassword`, `listEntries`, `getSecret` |
-| SSH | `ssh:*` | `connect`, `disconnect`, `listSessions`, `resize`, `openChannel` |
+| Vault | `vault:*` | `unlock`, `lock`, `status`, `create`, `changeMasterPassword`, `listEntries`, `entryGet` (Passwort für Clipboard-Guard), `getSecret` |
+| SSH | `ssh:*` | `connect`, `disconnect`, `listSessions`, `resize`, `exec` (nicht-interaktives Kommando für Multi-Host Runner) |
 | SFTP | `sftp:*` | `open`, `list`, `mkdir`, `rename`, `remove`, `upload`, `download`, `cancel` |
 | FS | `fs:*` | `listLocal`, `mkdirLocal`, `stat`, `listOpeners` |
 | Settings | `settings:*` | `get`, `set` (User + Vault), Push `settings:changed` |
 | Dialog | `dialog:*` | `pickFolder`, `pickFile` (native Electron-Dialoge) |
 | System | `system:*` | `getStats` (CPU, RAM, GPU, Speicher für die Statusleiste) |
+| Clipboard | `clipboard:*` | `write`, `read` (über Electron-Main, damit Leeren auch ohne Renderer-Fokus zuverlässig ist) |
+| Update | `update:*` | `check` (GitHub-Release-Check, nicht-blockierend), `open` (Release-Seite im Browser) |
 | Plugins | `plugins:*` | `list`, `install`, `uninstall`, `enable`, `disable`, `grantPermission`, IPC-Bridge |
-| Fenster | `window:*` | `open` (Terminal/SFTP), `openPanel` |
+| Fenster | `window:*` | `open` (Terminal/SFTP), `openPanel`, `setTitle` (Session-Name im Fenstertitel) |
 
 Ereignisse (Main → Renderer) laufen über `vault:event`, `ssh:event`, `sftp:event`,
 `settings:changed`. Terminal-/SFTP-Datenströme über `MessageChannel`.
@@ -132,6 +134,7 @@ apps/desktop/src/
 │   │   ├── vault-settings.ts       # VaultSettings (pro .kdbx) + VaultSettingsStorage-Interface
 │   │   ├── kdbx-vault-settings-storage.ts  # KDBX-Eintrag "SSH Central App/Settings"
 │   │   ├── vault-service.ts, host-store.ts, ssh-service.ts, sftp-service.ts
+│   │   ├── release-checker.ts       # GitHub-Update-Check (Semver, injizierter Fetch, still bei Fehler)
 │   │   └── credential-resolver.ts, openers.ts
 │   └── plugin/
 │       ├── plugin-manager.ts       # Laden, Hooks, Events, Tabs, IPC, Secrets, Storage, Permissions
@@ -148,15 +151,19 @@ apps/renderer/src/
 │   └── settings/           # SettingComponent, SettingSectionComponent, SettingsRenderer
 ├── features/
 │   ├── vault/              # VaultGate (Login/Unlock), VaultView, ChangePasswordDialog
-│   ├── hosts/              # Host-Liste + Manager
-│   ├── terminal/           # xterm.js-Ansicht + Tab
+│   ├── hosts/              # Host-Liste + Manager (+ "Befehl ausführen" → Multi-Host Runner)
+│   ├── terminal/           # xterm.js-Ansicht + SessionBar (Name + Farbe, setTitle)
 │   ├── sftp/               # Side-by-Side File Manager
 │   ├── settings/           # UserSettingsDialog, VaultSettingsDialog
+│   ├── command-palette/    # Globale Command Palette (Strg+P), palette-utils (testbar)
+│   ├── command-runner/     # MultiCommandDialog (paralleles Kommando auf N Hosts), format.ts
 │   └── plugins/            # PluginsDialog, PluginPanel, PluginDialogHost
 └── i18n/                   # de/ + en/ Woerterbuecher, useTranslation()
+lib/
+└── clipboard-guard.ts      # Auto-Clear der Zwischenablage (30 s) für kopierte Vault-Secrets
 packages/
 ├── vault/src/              # kdbxweb-Wrapper: create, unlock, lock, entries, read/writeSettings
-├── ssh-core/src/           # ConnectionManager (inkl. TOFU-Host-Key-Verifizierung)
+├── ssh-core/src/           # ConnectionManager (TOFU-Host-Key), SessionManager, CommandRunner
 ├── sftp/src/               # SftpEngine, TransferQueue
 ├── ipc-contracts/src/      # Typen, Channels, SettingDefinition-Schema + Sanitizer
 ├── plugin-sdk/src/         # PluginApi-Typen, definePlugin, ssh-central-plugin-CLI

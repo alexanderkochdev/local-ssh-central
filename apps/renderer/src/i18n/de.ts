@@ -5,6 +5,8 @@ import { settings } from './de/settings.js';
 import { sftp } from './de/sftp.js';
 import { terminal } from './de/terminal.js';
 import { plugins } from './de/plugins.js';
+import { commands } from './de/commands.js';
+import { update } from './de/update.js';
 
 /** Zusammengefuehrtes deutsches Woerterbuch. */
 export const de: Record<string, string> = {
@@ -15,4 +17,6 @@ export const de: Record<string, string> = {
   ...sftp,
   ...terminal,
   ...plugins,
+  ...commands,
+  ...update,
 };

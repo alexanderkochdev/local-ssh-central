@@ -16,6 +16,7 @@ export const IpcChannels = {
   vaultEntryCreate: 'vault:entryCreate',
   vaultEntryUpdate: 'vault:entryUpdate',
   vaultEntryDelete: 'vault:entryDelete',
+  vaultEntryGet: 'vault:entryGet',
   vaultKeyGenerate: 'vault:keyGenerate',
   vaultKeyImport: 'vault:keyImport',
   vaultEvent: 'vault:event',
@@ -31,6 +32,7 @@ export const IpcChannels = {
   sshResize: 'ssh:resize',
   sshWrite: 'ssh:write',
   sshListSessions: 'ssh:listSessions',
+  sshExec: 'ssh:exec',
   sshEvent: 'ssh:event',
 
   // Einstellungen (Schema-getrieben: User geräteweit, Vault pro .kdbx)
@@ -48,8 +50,19 @@ export const IpcChannels = {
   // System-Ressourcen (CPU, RAM, GPU, Speicher) fuer die Statusleiste
   systemGetStats: 'system:getStats',
 
+  // Zwischenablage (u.eber Electron-Main, damit Leeren auch ohne Renderer-Fokus zuverlaessig funktioniert)
+  clipboardWrite: 'clipboard:write',
+  clipboardRead: 'clipboard:read',
+
+  // GitHub-Update-Check (nicht-blockierend beim App-Start)
+  updateCheck: 'update:check',
+  updateOpen: 'update:open',
+
   // Fenster-Verwaltung (neue Terminal-/SFTP-Fenster)
   windowOpen: 'window:open',
+  windowSetTitle: 'window:setTitle',
+  windowAttachSession: 'window:attachSession',
+  windowAttachSftp: 'window:attachSftp',
 
   // SFTP
   sftpOpen: 'sftp:open',

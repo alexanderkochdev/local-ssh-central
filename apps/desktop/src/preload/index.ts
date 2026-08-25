@@ -28,6 +28,7 @@ const api: SshCentralApi = {
       create: (request) => ipcRenderer.invoke(IpcChannels.vaultEntryCreate, request),
       update: (request) => ipcRenderer.invoke(IpcChannels.vaultEntryUpdate, request),
       remove: (request) => ipcRenderer.invoke(IpcChannels.vaultEntryDelete, request),
+      get: (request) => ipcRenderer.invoke(IpcChannels.vaultEntryGet, request),
     },
     keys: {
       generate: (request) => ipcRenderer.invoke(IpcChannels.vaultKeyGenerate, request),
@@ -45,6 +46,7 @@ const api: SshCentralApi = {
     resize: (request) => ipcRenderer.invoke(IpcChannels.sshResize, request),
     write: (request) => ipcRenderer.invoke(IpcChannels.sshWrite, request),
     listSessions: () => ipcRenderer.invoke(IpcChannels.sshListSessions),
+    exec: (request) => ipcRenderer.invoke(IpcChannels.sshExec, request),
   },
   sftp: {
     open: (request) => ipcRenderer.invoke(IpcChannels.sftpOpen, request),
@@ -77,6 +79,9 @@ const api: SshCentralApi = {
   windows: {
     openTerminal: (hostId) => ipcRenderer.send(IpcChannels.windowOpen, { kind: 'terminal', id: hostId }),
     openSftp: (hostId) => ipcRenderer.send(IpcChannels.windowOpen, { kind: 'sftp', id: hostId }),
+    setTitle: (title) => ipcRenderer.send(IpcChannels.windowSetTitle, title),
+    attachSession: (sessionId) => ipcRenderer.send(IpcChannels.windowAttachSession, sessionId),
+    attachSftp: (handle) => ipcRenderer.send(IpcChannels.windowAttachSftp, handle),
   },
   settings: {
     getUser: async () => (await ipcRenderer.invoke(IpcChannels.settingsGet) as SettingsGetResult).user,
@@ -99,6 +104,14 @@ const api: SshCentralApi = {
   },
   system: {
     getStats: () => ipcRenderer.invoke(IpcChannels.systemGetStats),
+  },
+  clipboard: {
+    write: (text) => ipcRenderer.invoke(IpcChannels.clipboardWrite, text),
+    read: () => ipcRenderer.invoke(IpcChannels.clipboardRead),
+  },
+  update: {
+    check: () => ipcRenderer.invoke(IpcChannels.updateCheck),
+    open: (url) => ipcRenderer.send(IpcChannels.updateOpen, url),
   },
   plugins: {
     list: () => ipcRenderer.invoke(IpcChannels.pluginsList),

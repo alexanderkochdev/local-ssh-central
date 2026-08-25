@@ -35,6 +35,30 @@ export interface DisconnectRequest {
   sessionId: string;
 }
 
+/** Fuehrt ein einzelnes Kommando auf einem Host aus (fuer den Multi-Host Command Runner). */
+export interface CommandRunRequest {
+  hostId: string;
+  command: string;
+  /** Timeout in Millisekunden, nach dem das Kommando abgebrochen wird (Default: 30 s). */
+  timeoutMs?: number;
+}
+
+/** Ergebnis eines einzelnen Kommando-Laufs. Keine Secrets - nur Output + Exit-Code. */
+export interface CommandRunResult {
+  hostId: string;
+  success: boolean;
+  exitCode?: number;
+  output: string;
+  error?: string;
+}
+
+/** Batch-Anfrage fuer den Multi-Host Command Runner (mehrere Hosts, ein Kommando). */
+export interface MultiCommandRunRequest {
+  hostIds: string[];
+  command: string;
+  timeoutMs?: number;
+}
+
 export type SshEvent =
   | { type: 'sessionCreated'; session: SessionInfo }
   | { type: 'sessionStatus'; sessionId: string; status: SessionStatus; error?: string }

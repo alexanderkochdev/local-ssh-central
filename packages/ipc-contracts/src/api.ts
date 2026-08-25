@@ -7,6 +7,7 @@ import type {
   VaultCreateOptions,
   VaultEntryCreateRequest,
   VaultEntryDeleteRequest,
+  VaultEntryGetRequest,
   VaultEntrySummary,
   VaultEntryUpdateRequest,
   VaultInfo,
@@ -15,6 +16,8 @@ import type {
 } from './vault.js';
 import type { Host, HostDeleteRequest, HostUpsertRequest } from './hosts.js';
 import type {
+  CommandRunRequest,
+  CommandRunResult,
   ConnectRequest,
   DisconnectRequest,
   ResizeRequest,
@@ -52,6 +55,7 @@ import type {
 } from './plugins.js';
 import type { UserSettingsValues, VaultSettingsValues } from './setting-definitions.js';
 import type { SystemStats } from './system.js';
+import type { UpdateCheckResult } from './update.js';
 
 export type SettingsScope = 'user' | 'vault';
 
@@ -85,6 +89,8 @@ export interface SshCentralApi {
       create(request: VaultEntryCreateRequest): Promise<string>;
       update(request: VaultEntryUpdateRequest): Promise<void>;
       remove(request: VaultEntryDeleteRequest): Promise<void>;
+      /** Holt das Passwort eines Eintrags fuer einen expliziten Copy-Vorgang (Clipboard-Guard). */
+      get(request: VaultEntryGetRequest): Promise<string | undefined>;
     };
     keys: {
       generate(request: GenerateSshKeyRequest): Promise<SshKeyResult>;
@@ -102,6 +108,8 @@ export interface SshCentralApi {
     resize(request: ResizeRequest): Promise<void>;
     write(request: WriteRequest): Promise<void>;
     listSessions(): Promise<SessionInfo[]>;
+    /** Fuehrt ein einzelnes Kommando auf einem Host aus und liefert Output + Exit-Code. */
+    exec(request: CommandRunRequest): Promise<CommandRunResult>;
   };
   sftp: {
     open(request: { hostId: string }): Promise<{ handle: string; cwd: string }>;
@@ -156,12 +164,40 @@ export interface SshCentralApi {
     getStats(): Promise<SystemStats>;
   };
   /**
+   * Zwischenablage via Electron-Main (zuverlaessig, unabhaengig vom Renderer-Fokus).
+   * Wird vom Clipboard-Guard genutzt, um kopierte Vault-Passwoerter nach kurzer Zeit
+   * zuverlaessig wieder zu entfernen.
+   */
+  clipboard: {
+    write(text: string): Promise<void>;
+    read(): Promise<string>;
+  };
+  /** GitHub-Update-Check beim App-Start (nicht-blockierend). */
+  update: {
+    check(): Promise<UpdateCheckResult>;
+    /** Oeffnet die Release-Seite im Standard-Browser. */
+    open(url: string): void;
+  };
+  /**
    * Oeffnet neue, unabhaengige Fenster fuer Terminal-/SFTP-Sessions (unbegrenzt parallel).
    * Jedes Fenster verbindet sich selbst ueber die Host-ID.
    */
   windows: {
     openTerminal(hostId: string): void;
     openSftp(hostId: string): void;
+    /** Setzt den OS-Fenstertitel (z.B. fuer benannte Sessions im Terminal-Fenster). */
+    setTitle(title: string): void;
+    /**
+     * Meldet eine selbst-erzeugte SSH-Session an das aktuelle Fenster. Der Main-Process
+     * trennt die Session zuverlaessig, sobald dieses Fenster geschlossen wird (React-Unmount
+     * laeuft in Electron beim Fensterschliessen nicht zuverlaessig).
+     */
+    attachSession(sessionId: string): void;
+    /**
+     * Meldet einen selbst-geoeffneten SFTP-Handle an das aktuelle Fenster. Der Main-Process
+     * schliesst die SFTP-Session zuverlaessig, sobald dieses Fenster geschlossen wird.
+     */
+    attachSftp(handle: string): void;
   };
   /**
    * Plugin-Verwaltung: lokal installierte Plugins (aus ZIP) auflisten, installieren,

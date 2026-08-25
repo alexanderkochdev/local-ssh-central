@@ -74,6 +74,11 @@ export interface VaultEntryDeleteRequest {
   id: string;
 }
 
+/** Holt das Passwort eines Eintrags - NUR fuer einen expliziten Copy-Vorgang (Clipboard-Guard). */
+export interface VaultEntryGetRequest {
+  id: string;
+}
+
 // ------------------------------------------------------------------ SSH-Keychain
 
 export type SshKeyType = 'ed25519' | 'rsa';

@@ -3,8 +3,13 @@ name: build
 on:
   push:
     branches: [develop, main]
+    # Tags vX.Y.Z: bauen die Installer UND legen die GitHub-Release mit Artifacts an.
+    tags: ['v*']
   pull_request:
     branches: [develop, main]
+
+permissions:
+  contents: read
 
 env:
   CI: true
@@ -95,3 +100,28 @@ jobs:
             apps/desktop/release/**/*.AppImage
             apps/desktop/release/**/*.deb
           if-no-files-found: warn
+
+  # Bei einem Tag-Push (vX.Y.Z): sammelt die Installer aus den package-Jobs und legt
+  # die GitHub-Release mit den Artifacts an. Läuft nach `package` (buildet die Installer).
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          name: ${{ github.ref_name }}
+          generate_release_notes: true

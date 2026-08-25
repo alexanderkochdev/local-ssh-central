@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useState } from 'react';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
-import type { SettingDefinition, SettingSection } from '@ssh-central/ipc-contracts';
+import type { SettingDefinition, SettingSection, SettingValue } from '@ssh-central/ipc-contracts';
 import { SettingComponent } from '../src/components/settings/SettingComponent.js';
 import { SettingSectionComponent } from '../src/components/settings/SettingSectionComponent.js';
 import { SettingsRenderer } from '../src/components/settings/SettingsRenderer.js';
@@ -62,6 +63,36 @@ describe('SettingComponent', () => {
   it('rendert ein Number-Input', () => {
     render(<SettingComponent definition={definition({ type: 'number', default: 13, min: 8, max: 24 })} value={13} onChange={() => {}} t={t} />);
     expect(screen.getByRole('spinbutton')).toBeTruthy();
+  });
+
+  it('Number-Input: Wert 0 -> "5" tippen + Blur meldet 5 (kein Ruecksetzen auf 0)', () => {
+    const onChange = vi.fn();
+    const def = definition({ type: 'number', default: 0, min: 0, max: 300, step: 5 });
+    render(<SettingComponent definition={def} value={0} onChange={onChange} t={t} />);
+
+    const input = screen.getByRole('spinbutton') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '5' } });
+    fireEvent.blur(input);
+
+    expect(onChange).toHaveBeenCalledWith(5);
+  });
+
+  it('Number-Input: kontrollierter Ablauf behaelt nach Blur den geaenderten Wert', () => {
+    // Bildet den echten Dialog-Fluss nach: onChange aktualisiert den Store-Wert,
+    // der als value-Prop zurueckkommt. Nach Blur muss "5" stehen bleiben.
+    function Harness({ def, initial }: { def: SettingDefinition; initial: SettingValue }) {
+      const [value, setValue] = useState<SettingValue>(initial);
+      return <SettingComponent definition={def} value={value} onChange={setValue} t={t} />;
+    }
+
+    const def = definition({ type: 'number', default: 0, min: 0, max: 300, step: 5 });
+    render(<Harness def={def} initial={0} />);
+
+    const input = screen.getByRole('spinbutton') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '5' } });
+    fireEvent.blur(input);
+
+    expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('5');
   });
 
   it('rendert ein Text-Input', () => {

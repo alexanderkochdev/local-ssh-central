@@ -7,6 +7,7 @@ import type {
   VaultCreateOptions,
   VaultEntryCreateRequest,
   VaultEntryDeleteRequest,
+  VaultEntryGetRequest,
   VaultEntryUpdateRequest,
   VaultUnlockRequest,
 } from '@ssh-central/ipc-contracts';
@@ -86,6 +87,11 @@ export function registerVaultIpc(
 
   ipcMain.handle(IpcChannels.vaultEntryDelete, (_event, request: VaultEntryDeleteRequest) =>
     services.vault.deleteEntry(request.id),
+  );
+
+  // Passwort fuer einen expliziten Copy-Vorgang (Clipboard-Guard) abrufen.
+  ipcMain.handle(IpcChannels.vaultEntryGet, (_event, request: VaultEntryGetRequest) =>
+    services.vault.getEntryPassword(request.id),
   );
 
   // ----------------------------------------------------------------- Keychain
