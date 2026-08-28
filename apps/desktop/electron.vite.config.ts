@@ -20,6 +20,9 @@ const externalTransitives = [
   'kdbxweb',
   '@node-rs/argon2',
   'electron-log',
+  // electron-updater liest zur Laufzeit `app-update.yml` aus den Resources und muss
+  // deshalb als echtes CJS-Modul aus node_modules geladen werden (nicht gebundelt).
+  'electron-updater',
 ];
 
 export default defineConfig({

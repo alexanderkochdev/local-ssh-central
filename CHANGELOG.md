@@ -4,6 +4,58 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.4.0] - 2026-08-28
+
+> **Einmalig manuell installieren**: Diese Version bringt das Selbst-Update mit. Installationen
+> von **v1.3.0 und älter** enthalten electron-updater noch nicht und können sich deshalb nicht
+> selbst auf 1.4.0 aktualisieren — bitte den Installer einmal von der Release-Seite laden.
+> **Ab v1.4.0 laufen alle weiteren Updates automatisch** (Windows-Installation und Linux-AppImage).
+
+### Added
+- **Automatische Updates (electron-updater)**: Die App lädt ein neues Release jetzt selbst
+  herunter und installiert es nach Bestätigung mit einem Neustart — kein manueller Download der
+  `.exe`/`.AppImage` mehr. Neuer Service `apps/desktop/src/main/services/auto-updater.ts`
+  (`AutoUpdateService` mit injiziertem `UpdaterPort`, reine Funktion `isAutoUpdateSupported`),
+  neue IPC-Kanäle `update:download`, `update:install` und der Fortschritts-Push `update:state`.
+  Der `UpdateDialog` zeigt Fortschrittsbalken, übertragene Menge und Rate.
+  - Unterstützt: Windows-Installation (NSIS) und Linux-**AppImage**.
+  - Nicht unterstützt (bewusst): `.deb` (gehört dem Paketmanager) und Dev-Builds — dort führt der
+    Dialog wie bisher zur Release-Seite (`UpdateCheckResult.canAutoUpdate`).
+  - Kein stiller Hintergrund-Download (`autoDownload = false`); vor dem Neustart werden alle
+    Sessions geschlossen und der Tresor gesperrt.
+- **`docs/releases.md`**: vollständige Dokumentation von Release-Prozess, CI/CD-Workflow,
+  Auto-Update-Fluss, Pre-Release-Tests und typischen Fehlerbildern. Verlinkt aus `README.md`
+  und `CONTRIBUTING.md`; `CONTRIBUTING.md` erklärt jetzt zusätzlich, was die CI automatisch tut
+  und wie `pnpm package` sich davon unterscheidet.
+- **CI-Diagnose**: Der `build`-Job schreibt bei einem Fehlschlag eine Zusammenfassung in das
+  Job-Summary (welcher Schritt gescheitert ist + lokaler Reproduktions-Befehl) und lädt die
+  Coverage-Berichte als Artifact `coverage-<os>` hoch (auch bei Fehlschlag).
+- **Regressionstests für die Release-Konfiguration** (`apps/desktop/tests/packaging-config.test.ts`):
+  prüfen die Kopplung zwischen `electron-builder.yml`, dem CI-Workflow und `package.json` —
+  Upload-Glob-Ebene vs. `directories.output`, leerzeichenfreie Artifact-Namen, Vollständigkeit der
+  Update-Metadaten (`latest*.yml`, `*.blockmap`), `if-no-files-found: error` und der Abgleich
+  zwischen Artifact-Namen und Download-Pattern. Beide unten aufgeführten Fehler waren beim Bauen
+  unsichtbar und wären erst beim Release bzw. beim Endnutzer aufgefallen.
+
+### Changed
+- **Packaging**: `publish: github` in `electron-builder.yml` — erzeugt `app-update.yml` in der
+  Installation sowie `latest.yml`/`latest-linux.yml` und `*.blockmap` als Release-Assets.
+  Die `package`-Skripte laufen explizit mit `--publish never`; das Veröffentlichen macht
+  ausschließlich der `release`-Job der CI.
+- **Installer-Dateinamen ohne Leerzeichen** (`SSH-Central-<version>-<os>-<arch>.<ext>` statt
+  `SSH Central-…`). Notwendig für das Auto-Update: GitHub ersetzt Leerzeichen in Asset-Namen
+  durch Punkte, während electron-builder in `latest.yml` Bindestriche schreibt — der Updater
+  hätte die Datei nie gefunden.
+
+### Fixed
+- **CI lud keine Installer mehr hoch**: Der Upload-Glob zeigte auf `apps/desktop/release/*.exe`,
+  electron-builder schreibt aber nach `release/<version>/` (`directories.output`). Ein Tag-Push
+  hätte damit eine **Release ohne Assets** erzeugt. Der Glob greift jetzt eine Ebene tiefer
+  (`release/*/…`), nimmt zusätzlich `latest*.yml` + `*.blockmap` mit und schlägt bei leerem
+  Ergebnis laut fehl (`if-no-files-found: error`) statt still zu warnen.
+- **Release-Assets**: Der `release`-Job lädt nur noch die Installer-Artifacts herunter
+  (`pattern: ssh-central-*`), damit Coverage-Berichte nicht in der Release landen.
+
 ## [1.3.0] - 2026-08-25
 
 ### Added

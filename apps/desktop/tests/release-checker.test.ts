@@ -64,7 +64,19 @@ describe('ReleaseChecker', () => {
       latest: '1.5.0',
       available: true,
       url: 'https://github.com/x/y/releases/tag/v1.5.0',
+      canAutoUpdate: false,
     });
+  });
+
+  it('reicht die Auto-Update-Faehigkeit des Builds durch', async () => {
+    const fetchImpl = makeFetch({ status: 200, body: { tag_name: 'v1.5.0' } });
+    const checker = new ReleaseChecker(fetchImpl);
+
+    expect((await checker.check('1.4.0', true)).canAutoUpdate).toBe(true);
+    expect((await checker.check('1.4.0', false)).canAutoUpdate).toBe(false);
+    // Auch im Fehlerfall bleibt die Angabe erhalten (UI darf sich darauf verlassen).
+    const failing = new ReleaseChecker(makeFetch({ status: 500 }));
+    expect((await failing.check('1.4.0', true)).canAutoUpdate).toBe(true);
   });
 
   it('meldet kein Update, wenn der Release nicht neuer ist', async () => {
@@ -79,7 +91,7 @@ describe('ReleaseChecker', () => {
   it('kein Release / nicht-200 -> kein Update', async () => {
     const checker = new ReleaseChecker(makeFetch({ status: 404 }));
     const result = await checker.check('1.4.0');
-    expect(result).toEqual({ current: '1.4.0', latest: null, available: false });
+    expect(result).toEqual({ current: '1.4.0', latest: null, available: false, canAutoUpdate: false });
   });
 
   it('Netzwerkfehler wird still abgefangen (kein Update)', async () => {
@@ -88,6 +100,6 @@ describe('ReleaseChecker', () => {
     });
     const checker = new ReleaseChecker(fetchImpl as unknown as FetchLike);
     const result = await checker.check('1.4.0');
-    expect(result).toEqual({ current: '1.4.0', latest: null, available: false });
+    expect(result).toEqual({ current: '1.4.0', latest: null, available: false, canAutoUpdate: false });
   });
 });

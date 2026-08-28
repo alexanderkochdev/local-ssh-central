@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
   IpcChannels,
+  type AutoUpdateState,
   type PluginIpcPush,
   type SettingsChangedPayload,
   type SettingsGetResult,
@@ -112,6 +113,13 @@ const api: SshCentralApi = {
   update: {
     check: () => ipcRenderer.invoke(IpcChannels.updateCheck),
     open: (url) => ipcRenderer.send(IpcChannels.updateOpen, url),
+    download: () => ipcRenderer.invoke(IpcChannels.updateDownload),
+    install: () => ipcRenderer.send(IpcChannels.updateInstall),
+    onState: (handler: (state: AutoUpdateState) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, state: AutoUpdateState) => handler(state);
+      ipcRenderer.on(IpcChannels.updateState, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.updateState, listener);
+    },
   },
   plugins: {
     list: () => ipcRenderer.invoke(IpcChannels.pluginsList),

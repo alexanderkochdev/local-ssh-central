@@ -55,7 +55,7 @@ import type {
 } from './plugins.js';
 import type { UserSettingsValues, VaultSettingsValues } from './setting-definitions.js';
 import type { SystemStats } from './system.js';
-import type { UpdateCheckResult } from './update.js';
+import type { AutoUpdateState, UpdateCheckResult } from './update.js';
 
 export type SettingsScope = 'user' | 'vault';
 
@@ -172,11 +172,22 @@ export interface SshCentralApi {
     write(text: string): Promise<void>;
     read(): Promise<string>;
   };
-  /** GitHub-Update-Check beim App-Start (nicht-blockierend). */
+  /**
+   * Update-Fluss. `check` fragt die GitHub-Releases ab (nicht-blockierend beim App-Start).
+   * Kann der Build sich selbst aktualisieren (`canAutoUpdate`), laedt `download` das Paket
+   * ueber electron-updater herunter und `install` startet die App neu in die neue Version.
+   * Sonst bleibt `open` (Release-Seite im Browser) als manueller Weg.
+   */
   update: {
     check(): Promise<UpdateCheckResult>;
     /** Oeffnet die Release-Seite im Standard-Browser. */
     open(url: string): void;
+    /** Startet den In-App-Download; Fortschritt kommt ueber `onState`. */
+    download(): Promise<AutoUpdateState>;
+    /** Beendet die App und installiert das heruntergeladene Update. */
+    install(): void;
+    /** Abo auf den Update-Fortschritt (Main -> Renderer). Gibt die Abmelde-Funktion zurueck. */
+    onState(handler: (state: AutoUpdateState) => void): () => void;
   };
   /**
    * Oeffnet neue, unabhaengige Fenster fuer Terminal-/SFTP-Sessions (unbegrenzt parallel).

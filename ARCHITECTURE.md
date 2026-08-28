@@ -106,12 +106,12 @@ Zentrale `interface` je Domäne, implementiert vom Main und von `window.api` (Pr
 | Dialog | `dialog:*` | `pickFolder`, `pickFile` (native Electron-Dialoge) |
 | System | `system:*` | `getStats` (CPU, RAM, GPU, Speicher für die Statusleiste) |
 | Clipboard | `clipboard:*` | `write`, `read` (über Electron-Main, damit Leeren auch ohne Renderer-Fokus zuverlässig ist) |
-| Update | `update:*` | `check` (GitHub-Release-Check, nicht-blockierend), `open` (Release-Seite im Browser) |
+| Update | `update:*` | `check` (GitHub-Release-Check, nicht-blockierend), `open` (Release-Seite im Browser), `download`/`install`/`state` (In-App-Update via electron-updater) |
 | Plugins | `plugins:*` | `list`, `install`, `uninstall`, `enable`, `disable`, `grantPermission`, IPC-Bridge |
 | Fenster | `window:*` | `open` (Terminal/SFTP), `openPanel`, `setTitle` (Session-Name im Fenstertitel) |
 
 Ereignisse (Main → Renderer) laufen über `vault:event`, `ssh:event`, `sftp:event`,
-`settings:changed`. Terminal-/SFTP-Datenströme über `MessageChannel`.
+`settings:changed`, `update:state`. Terminal-/SFTP-Datenströme über `MessageChannel`.
 
 ## Datei-Struktur (aktuell)
 
@@ -135,6 +135,7 @@ apps/desktop/src/
 │   │   ├── kdbx-vault-settings-storage.ts  # KDBX-Eintrag "SSH Central App/Settings"
 │   │   ├── vault-service.ts, host-store.ts, ssh-service.ts, sftp-service.ts
 │   │   ├── release-checker.ts       # GitHub-Update-Check (Semver, injizierter Fetch, still bei Fehler)
+│   │   ├── auto-updater.ts          # In-App-Update (electron-updater via injiziertem UpdaterPort)
 │   │   └── credential-resolver.ts, openers.ts
 │   └── plugin/
 │       ├── plugin-manager.ts       # Laden, Hooks, Events, Tabs, IPC, Secrets, Storage, Permissions

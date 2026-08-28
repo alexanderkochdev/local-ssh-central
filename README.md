@@ -25,7 +25,7 @@ Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht —
 | **Lizenz** | [GPL-3.0](LICENSE) (OSI Open Source, Copyleft) |
 | **Stack** | Electron · React · Material UI · TypeScript · pnpm + Turborepo |
 | **Plattformen** | Windows 10/11 · Linux (AppImage/deb) |
-| **Status** | **v1.3.0** — Open-Source-Release (GPL-3.0) |
+| **Status** | **v1.4.0** — Automatische Updates (GPL-3.0 Open Source) |
 
 ---
 
@@ -33,7 +33,8 @@ Terminal-Sessions und SFTP-Dateiübertragungen in einer Side-by-Side-Ansicht —
 
 Lade die aktuelle Version von den [GitHub Releases](https://github.com/alexanderkochdev/ssh-central/releases) herunter
 (Windows-Installer `.exe`, Linux AppImage/deb). Alle Secrets bleiben lokal in deinem
-KeePass-kompatiblen Vault.
+KeePass-kompatiblen Vault. Die Windows-Installation und das AppImage aktualisieren sich danach
+**aus der App heraus** — ein manueller Download pro Version ist nicht nötig.
 
 ---
 
@@ -53,8 +54,10 @@ KeePass-kompatiblen Vault.
 - **Command Palette (Strg+P)** — durchsuche Hosts, Tresor-Einträge und Aktionen per fuzzy-Suche.
 - **Clipboard-Guard** — kopierte Vault-Passwörter werden nach konfigurierbarer Zeit (Standard 10 s)
   automatisch aus der Zwischenablage entfernt — mit expliziter Bestätigung vor dem Kopieren.
-- **Update-Check** — prüft beim Start nicht-blockierend auf neue GitHub-Releases und erinnert an
-  ein Update.
+- **Automatische Updates** — die App prüft beim Start nicht-blockierend auf neue GitHub-Releases,
+  lädt das Update auf Wunsch direkt in der App herunter (Windows-Installation & Linux-AppImage)
+  und installiert es mit einem Neustart. Bei `.deb`-Installationen führt der Weg bewusst zum
+  Paketmanager bzw. zur Release-Seite. Details: [docs/releases.md](docs/releases.md).
 - **Schema-getriebenes Settings-System** — `UserSettings` (geräteweit) + `VaultSettings`
   (pro `.kdbx`, portabel), rendern über generische UI-Bausteine.
 - **Plugins** — ZIP-installierbare Plugins (UI, IPC, Dialoge, Secrets, Persistenz,
@@ -65,7 +68,7 @@ KeePass-kompatiblen Vault.
   ressourcenschonender Main-Process.
 
 Siehe [docs/roadmap.md](docs/roadmap.md) für die Roadmap und [docs/security.md](docs/security.md)
-für das Security-Design.
+für das Security-Design. Build, Release und Auto-Update: [docs/releases.md](docs/releases.md).
 
 ---
 
@@ -92,7 +95,7 @@ local-ssh-central/
 │   ├── plugin-sdk/       # SDK für Plugins (typisierte API, definePlugin, CLI) — auf npm
 │   └── ui/               # Geteilte React-Komponenten & Theme
 ├── examples/             # Beispiel-Plugins
-├── docs/                 # Roadmap, Plugin-Entwicklung, Security-Design
+├── docs/                 # Roadmap, Plugin-Entwicklung, Security-Design, Release/CI-CD
 └── package.json          # pnpm + Turborepo Root
 ```
 
@@ -119,9 +122,11 @@ pnpm package        # erstellt Installer (Windows NSIS / Linux AppImage+deb)
 
 Standard-Branch ist **`develop`** (Integrationsbranch). Features kommen über
 `feature/*`-Branches herein; Releases werden einzeln über `release/x.y.z`-Branches
-geschnitten, auf `main` gemerged und als `vx.y.z`-Tag veröffentlicht.
+geschnitten, auf `main` gemerged und als `vx.y.z`-Tag veröffentlicht. Der Tag-Push
+baut die Installer in der CI und legt die GitHub-Release automatisch an.
 
-Details: [docs/roadmap.md](docs/roadmap.md#git-workflow)
+Details: [docs/releases.md](docs/releases.md) (Release, CI/CD, Auto-Update) ·
+[docs/roadmap.md](docs/roadmap.md#git-workflow) (Branch-Modell)
 
 ---
 

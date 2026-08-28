@@ -57,6 +57,10 @@ export const IpcChannels = {
   // GitHub-Update-Check (nicht-blockierend beim App-Start)
   updateCheck: 'update:check',
   updateOpen: 'update:open',
+  // In-App-Update (electron-updater): Download anstossen, installieren, Fortschritt
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
+  updateState: 'update:state',
 
   // Fenster-Verwaltung (neue Terminal-/SFTP-Fenster)
   windowOpen: 'window:open',

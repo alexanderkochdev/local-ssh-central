@@ -14,12 +14,24 @@ files:
   - out/**
   - package.json
 asar: true
+# Update-Quelle fuer electron-updater. Erzeugt beim Packen zusaetzlich die Metadaten
+# (latest.yml / latest-linux.yml + .blockmap), die die App zum Selbst-Update braucht.
+# Das eigentliche Hochladen macht der release-Job der CI (Packen laeuft mit --publish never).
+publish:
+  provider: github
+  owner: alexanderkochdev
+  repo: ssh-central
+  releaseType: release
 win:
   icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  # Bewusst OHNE ${productName}: "SSH Central" enthaelt ein Leerzeichen. GitHub ersetzt
+  # Leerzeichen in Asset-Namen durch Punkte, electron-builder schreibt in latest.yml aber
+  # Bindestriche - der Updater wuerde die Datei mit 404 nicht finden. Ein leerzeichenfreier
+  # Name haelt Datei, latest.yml und GitHub-Asset identisch.
+  artifactName: SSH-Central-${version}-${os}-${arch}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -32,4 +44,6 @@ linux:
   category: Network
   maintainer: Alexander Koch <https://www.alexanderkoch.dev/>
   synopsis: Fast, secure SSH client and SFTP file manager
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  # Ebenfalls leerzeichenfrei (siehe win.artifactName) - das AppImage-Update laeuft
+  # ueber denselben Namensabgleich in latest-linux.yml.
+  artifactName: SSH-Central-${version}-${os}-${arch}.${ext}

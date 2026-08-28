@@ -1,5 +1,6 @@
 import { app, dialog, ipcMain, BrowserWindow, clipboard, net, shell } from 'electron';
 import log from 'electron-log/main';
+import { autoUpdater } from 'electron-updater';
 import { join } from 'node:path';
 import {
   IpcChannels,
@@ -18,6 +19,12 @@ import { KdbxVaultSettingsStorage } from './services/kdbx-vault-settings-storage
 import { SshService } from './services/ssh-service.js';
 import { SftpService } from './services/sftp-service.js';
 import { ReleaseChecker } from './services/release-checker.js';
+import {
+  AutoUpdateService,
+  detectAutoUpdateEnvironment,
+  isAutoUpdateSupported,
+  type UpdaterPort,
+} from './services/auto-updater.js';
 import { resolveConnectionConfig } from './services/credential-resolver.js';
 import { collectSystemStats, setPingTarget } from './services/system-stats.js';
 import { registerIpc } from './ipc/router.js';
@@ -49,6 +56,15 @@ let plugins: PluginManager | null = null;
 // GitHub-Update-Check beim App-Start (nicht-blockierend). Fetch via Electron net.fetch.
 const releaseChecker = new ReleaseChecker((url) =>
   net.fetch(url, { headers: { 'User-Agent': 'ssh-central-update-check' } }),
+);
+
+// In-App-Update (electron-updater). Der Cast auf den schlanken UpdaterPort haelt den Service
+// frei von electron-updater-Typen und damit ohne Electron-Harness testbar.
+autoUpdater.logger = log;
+const autoUpdates = new AutoUpdateService(
+  autoUpdater as unknown as UpdaterPort,
+  (state) => emit(IpcChannels.updateState, state),
+  isAutoUpdateSupported(detectAutoUpdateEnvironment(app.isPackaged)),
 );
 
 // Schema-getriebene Settings (ipc-contracts).
@@ -337,11 +353,26 @@ app.whenReady().then(async () => {
   ipcMain.handle(IpcChannels.clipboardRead, () => clipboard.readText());
 
   // GitHub-Update-Check (beim App-Start vom Renderer abgefragt, nicht-blockierend).
-  ipcMain.handle(IpcChannels.updateCheck, () => releaseChecker.check(app.getVersion()));
+  // `canAutoUpdate` sagt der UI, ob sie das Update selbst laden darf oder auf die
+  // Release-Seite verweisen muss (.deb / Dev-Modus).
+  ipcMain.handle(IpcChannels.updateCheck, () =>
+    releaseChecker.check(app.getVersion(), autoUpdates.isSupported()),
+  );
   ipcMain.on(IpcChannels.updateOpen, (_event, url: string) => {
     if (typeof url === 'string' && /^https:\/\//.test(url)) {
       void shell.openExternal(url);
     }
+  });
+
+  // In-App-Update: Download anstossen bzw. das geladene Paket installieren (App startet neu).
+  ipcMain.handle(IpcChannels.updateDownload, () => autoUpdates.download());
+  ipcMain.on(IpcChannels.updateInstall, () => {
+    // Vor dem Neustart alle Verbindungen sauber schliessen und den Tresor sperren.
+    sessionWindows?.closeAll();
+    void services.ssh?.dispose();
+    void services.sftp?.dispose();
+    services.vault?.lock();
+    autoUpdates.install();
   });
 
   mainWindow = createMainWindow();

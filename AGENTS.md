@@ -66,6 +66,11 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 - Releases: `release/<version>` (von `develop`), wird auf `main` gemerged + Tag `v<version>`.
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `build:`, `chore:`).
 - **Keine automatischen Versions-Bumps ohne expliziten User-Wunsch.**
+- **CI/CD**: ein Workflow (`.github/workflows/build.yml`). PR -> Checks (typecheck, lint,
+  test:coverage, build auf Windows + Linux); Push auf `develop`/`main` -> zusaetzlich Installer
+  als Artifact; Tag-Push `vX.Y.Z` -> GitHub-Release mit Installern **und** Update-Metadaten
+  (`latest*.yml`, `*.blockmap` - ohne die findet electron-updater kein Update).
+  Kompletter Ablauf inkl. Fehlerbilder: `docs/releases.md`.
 
 ## i18n (Pflicht)
 
@@ -99,7 +104,22 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 - **GitHub-Update-Check**: `services/release-checker.ts` fragt beim App-Start nicht-blockierend
   den letzten Release ab (Semver-Vergleich, `isNewerVersion` testbar, still bei Offline/API-Fehler).
   Renderer fragt `update:check` einmalig pro Start ab und zeigt bei einem neueren Release den
-  `UpdateDialog` (öffnet die Release-Seite via `update:open` / `shell.openExternal`).
+  `UpdateDialog`.
+- **In-App-Update (electron-updater)**: `services/auto-updater.ts` (`AutoUpdateService`) laedt und
+  installiert das Update. Klare Aufgabenteilung: `ReleaseChecker` **erinnert**, `AutoUpdateService`
+  **liefert**. Der Updater ist als schlanker `UpdaterPort` injiziert (ohne electron-updater-Typen)
+  und damit ohne Electron-Harness testbar; `isAutoUpdateSupported()` ist eine reine Funktion.
+  - Unterstuetzt: Windows-NSIS-Installation, Linux-AppImage (`process.env.APPIMAGE`).
+    Nicht unterstuetzt: `.deb` (Paketmanager) und Dev-Modus (`app.isPackaged === false`) ->
+    `UpdateCheckResult.canAutoUpdate === false`, die UI faellt auf `update:open`
+    (`shell.openExternal`, Release-Seite) zurueck.
+  - Kein stiller Hintergrund-Download (`autoDownload = false`); der User entscheidet im Dialog.
+    Fortschritt wird ueber `update:state` an alle Fenster gepusht, `update:install` schliesst
+    Sessions + sperrt den Tresor und startet dann neu.
+  - Packaging-Voraussetzung: `publish: github` in `electron-builder.yml` (erzeugt `app-update.yml`
+    in der Installation und `latest*.yml` + `*.blockmap` als Release-Assets). Artifact-Namen sind
+    bewusst leerzeichenfrei, sonst weicht der GitHub-Asset-Name von `latest.yml` ab (404).
+  - Release-/CI-Ablauf vollstaendig dokumentiert in `docs/releases.md`.
 - **Einstellungen** sind schema-getrieben (`packages/ipc-contracts/src/setting-definitions.ts`):
   - `UserSettings` -> `%APPDATA%/@ssh-local/user-settings.json` (geräteweit; Theme/Sprache sind schon
     auf dem Login-Screen verfuegbar via `UserSettingsDialog`).

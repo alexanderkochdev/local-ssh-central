@@ -47,16 +47,58 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
+        id: typecheck
         run: pnpm typecheck
 
       - name: Lint
+        id: lint
         run: pnpm lint
 
       - name: Test (inkl. Coverage-Thresholds)
+        id: test
         run: pnpm test:coverage
 
       - name: Build
+        id: package-build
         run: pnpm build
+
+      # Coverage-Berichte aufheben (HTML + json-summary je Paket), damit ein
+      # fehlgeschlagener Threshold ohne lokalen Re-Run nachvollziehbar ist.
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}
+          path: |
+            apps/*/coverage/**
+            packages/*/coverage/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Sagt im Job-Summary konkret, WELCHER Check gescheitert ist - sonst sieht man
+      # in der PR-Ansicht nur ein rotes "build (os)".
+      - name: Failure summary
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "## Check fehlgeschlagen (${{ matrix.os }})"
+            echo ""
+            echo "| Schritt | Ergebnis |"
+            echo "| --- | --- |"
+            echo "| Typecheck | ${{ steps.typecheck.outcome || 'skipped' }} |"
+            echo "| Lint | ${{ steps.lint.outcome || 'skipped' }} |"
+            echo "| Test + Coverage | ${{ steps.test.outcome || 'skipped' }} |"
+            echo "| Build | ${{ steps.package-build.outcome || 'skipped' }} |"
+            echo ""
+            echo "Lokal reproduzieren:"
+            echo '```bash'
+            echo 'pnpm install --frozen-lockfile'
+            echo 'pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build'
+            echo '```'
+            echo ""
+            echo "Bei Coverage-Fehlern: Artifact \`coverage-${{ matrix.os }}\` herunterladen."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Paketiert bei JEDEM Push (develop/main) und laedt die Installer als Artifacts hoch.
   # (Bei Pull Requests nur Checks, um schwere Packaging-Runs zu vermeiden.)
@@ -88,6 +130,8 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # `--publish never` (siehe package-Skript): Hochladen macht ausschliesslich der
+      # release-Job, damit Pushes auf develop keine Release-Assets veraendern.
       - name: Package
         run: pnpm package
 
@@ -95,13 +139,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ssh-central-${{ matrix.os }}
-          # Nur die Installer (Top-Level) - NICHT die internen Helfer aus win-unpacked/
-          # (elevate.exe, pagent.exe, SSH-Central.exe), damit die Release sauber bleibt.
+          # electron-builder schreibt nach `release/<version>/` (directories.output).
+          # Nur die Top-Level-Dateien dieses Ordners nehmen - NICHT die internen Helfer
+          # aus win-unpacked/ (elevate.exe, pagent.exe), damit die Release sauber bleibt.
+          # latest*.yml + *.blockmap sind Pflicht: electron-updater liest daraus die
+          # verfuegbare Version und den Delta-Download.
           path: |
-            apps/desktop/release/*.exe
-            apps/desktop/release/*.AppImage
-            apps/desktop/release/*.deb
-          if-no-files-found: warn
+            apps/desktop/release/*/*.exe
+            apps/desktop/release/*/*.AppImage
+            apps/desktop/release/*/*.deb
+            apps/desktop/release/*/*.blockmap
+            apps/desktop/release/*/latest*.yml
+          if-no-files-found: error
 
   # Bei einem Tag-Push (vX.Y.Z): sammelt die Installer aus den package-Jobs und legt
   # die GitHub-Release mit den Artifacts an. Läuft nach `package` (buildet die Installer).
@@ -119,8 +168,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          # Nur die Installer-Artifacts - die Coverage-Berichte gehoeren nicht in die Release.
+          pattern: ssh-central-*
           merge-multiple: true
 
+      - name: List release assets
+        run: ls -la artifacts
+
+      # Die Assets enthalten bewusst auch latest*.yml und *.blockmap: ohne diese Metadaten
+      # findet electron-updater in den installierten Apps kein Update.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

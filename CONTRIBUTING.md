@@ -23,7 +23,8 @@ Pull Request öffnest.
   - `fix/<kürzel>` — Bugfixes
   - `docs/<kürzel>` — reine Doku-Änderungen
 - Releases werden als `release/<version>` geschnitten und nach Review auf `main` gemerged
-  (+ Tag `v<version>`).
+  (+ Tag `v<version>`). Der Tag-Push löst Build und Veröffentlichung in der CI aus —
+  Schritt für Schritt in [`docs/releases.md`](docs/releases.md).
 
 ## Setup (Entwicklung)
 
@@ -45,6 +46,26 @@ Nützliche Skripte (Root):
 | `pnpm typecheck` | TypeScript-Prüfung (inkl. Tests) |
 | `pnpm lint` | ESLint |
 | `pnpm format` | Prettier schreiben |
+| `pnpm package` | Installer für die **eigene** Plattform bauen (`apps/desktop/release/<version>/`) |
+
+## CI/CD (was automatisch passiert)
+
+Ein einziger Workflow ([`.github/workflows/build.yml`](.github/workflows/build.yml)) deckt alles ab:
+
+| Auslöser | Was läuft |
+|----------|-----------|
+| **Pull Request** auf `develop`/`main` | Job `build` auf Windows **und** Linux: `typecheck`, `lint`, `test:coverage`, `build` |
+| **Push** auf `develop`/`main` | zusätzlich Job `package`: Installer (`.exe`, `.AppImage`, `.deb`) als Workflow-Artifact |
+| **Tag-Push** `vX.Y.Z` | zusätzlich Job `release`: GitHub-Release mit Installern **und** Update-Metadaten (`latest*.yml`) |
+
+Merke dir zwei Dinge:
+
+- Ein PR muss lokal dieselbe Suite grün haben, die die CI fährt (siehe unten) — die CI ist keine
+  Ausrede für ungetestete Commits.
+- Ist der `build`-Job rot, steht im **Job-Summary**, welcher Schritt gescheitert ist, plus der
+  lokale Reproduktions-Befehl. Coverage-Berichte liegen als Artifact `coverage-<os>` bereit.
+
+Release-Prozess, Auto-Update und Fehlerbilder: [`docs/releases.md`](docs/releases.md).
 
 ## Commits (Pflicht)
 
@@ -89,7 +110,8 @@ pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build
 ## Doku-Änderungen
 
 - Neue Funktionen/API in den passenden Docs dokumentieren (`docs/plugin-development.md` für
-  Plugin-API, `docs/security.md` für Sicherheit, `README.md` für Features).
+  Plugin-API, `docs/security.md` für Sicherheit, `docs/releases.md` für Build/Release/Update,
+  `README.md` für Features).
 - **Keine Versions-Bumps** in Pull Requests außer der Inhaber fordert es ausdrücklich.
   Releases werden separat geschnitten.
 

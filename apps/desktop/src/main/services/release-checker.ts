@@ -80,20 +80,28 @@ export class ReleaseChecker {
     private readonly repo = 'alexanderkochdev/ssh-central',
   ) {}
 
-  async check(currentVersion: string): Promise<UpdateCheckResult> {
+  /**
+   * Fragt den neuesten Release ab.
+   *
+   * @param currentVersion Installierte Version (app.getVersion()).
+   * @param canAutoUpdate  Kann sich dieser Build selbst aktualisieren (electron-updater)?
+   *                       Wird nur durchgereicht, damit die UI zwischen In-App-Update und
+   *                       manuellem Download unterscheiden kann.
+   */
+  async check(currentVersion: string, canAutoUpdate = false): Promise<UpdateCheckResult> {
     try {
       const url = `https://api.github.com/repos/${this.repo}/releases/latest`;
       const response = await this.fetchImpl(url);
       if (response.status !== 200) {
-        return { current: currentVersion, latest: null, available: false };
+        return { current: currentVersion, latest: null, available: false, canAutoUpdate };
       }
       const body = (await response.json()) as GitHubReleaseResponse;
       const latest = body.tag_name?.replace(/^v/, '') ?? null;
       const available = latest ? isNewerVersion(currentVersion, latest) : false;
-      return { current: currentVersion, latest, available, url: body.html_url };
+      return { current: currentVersion, latest, available, url: body.html_url, canAutoUpdate };
     } catch {
       // Netz-/API-Fehler: still ueberspringen.
-      return { current: currentVersion, latest: null, available: false };
+      return { current: currentVersion, latest: null, available: false, canAutoUpdate };
     }
   }
 }
