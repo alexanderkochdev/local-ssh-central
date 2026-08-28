@@ -46,7 +46,12 @@ pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build
 | Ausgabe | `apps/desktop/release/<version>/` | dieselben Dateien als Workflow-Artifact |
 | Veröffentlichen | nein (`--publish never`) | nein — das macht nur der `release`-Job |
 
-Nur eine Plattform bauen: `pnpm --filter @ssh-central/desktop package:win` bzw. `package:linux`.
+Nur eine Plattform bauen: `pnpm package:win` bzw. `pnpm package:linux`.
+
+> **Immer über die Root-Skripte paketieren.** Sie starten zuerst `turbo run build`, damit der
+> Renderer **vor** dem Desktop-Paket gebaut wird. Ein direktes
+> `pnpm --filter @ssh-central/desktop package` überspringt den Build; `copy-renderer.mjs`
+> bricht dann mit einem Hinweis ab, statt eine App ohne UI zu paketieren.
 
 ### Pre-Release lokal testen
 
@@ -258,6 +263,7 @@ Threshold-Fehlschlag ohne lokalen Re-Run nachvollziehbar ist.
 | `Test` rot mit Threshold-Meldung | Artifact `coverage-<os>` laden, `coverage/index.html` öffnen |
 | `Test` nur auf Linux rot | plattformabhängige Zweige (z. B. `openers.ts`) — Thresholds sind auf das Linux-Niveau gesetzt |
 | `package` rot mit `if-no-files-found: error` | electron-builder hat nichts geschrieben → Ursache im Packaging-Log, nicht im Upload |
+| `ENOENT … dist/assets/*.js.map` beim Build | Zwei parallele Vite-Builds im selben `dist/`. Darf nicht mehr auftreten: `@ssh-central/renderer` ist devDependency von `@ssh-central/desktop`, damit Turbo die Reihenfolge kennt (abgesichert in `packaging-config.test.ts`) |
 | Release ohne Assets | `package`-Job war rot oder der Upload-Glob passt nicht zu `directories.output` |
 | Auto-Update findet nichts | `latest*.yml` fehlt in der Release, oder der Asset-Name weicht von `latest.yml` ab |
 | Lokal `EBUSY … app.asar` | eine Installation/ein Build derselben Version läuft noch → App schließen oder Version-Suffix erhöhen |

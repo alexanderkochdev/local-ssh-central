@@ -75,6 +75,9 @@ importers:
         specifier: ^0.12.5
         version: 0.12.5
     devDependencies:
+      '@ssh-central/renderer':
+        specifier: workspace:*
+        version: link:../renderer
       '@types/adm-zip':
         specifier: ^0.5.8
         version: 0.5.8

@@ -48,6 +48,14 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   hätte die Datei nie gefunden.
 
 ### Fixed
+- **Sporadisch fehlschlagender Build (Race)**: `apps/desktop` deklarierte keine Abhängigkeit auf
+  `@ssh-central/renderer`, baute den Renderer im eigenen Build-Skript aber ein zweites Mal. Turbo
+  kannte damit keine Reihenfolge und führte beide Vite-Builds **parallel im selben `dist/`** aus —
+  Ergebnis: `ENOENT … assets/index-*.js.map`. Der Fehler war timing-abhängig und blieb mit warmem
+  Turbo-Cache unsichtbar (lokal grün, in der CI rot). Der Renderer ist jetzt devDependency des
+  Desktop-Pakets (erzeugt die Turbo-Kante), wird **genau einmal** gebaut, die `package`-Skripte
+  bauen nicht mehr selbst (Root-Skripte starten `turbo run build`), und `copy-renderer.mjs` bricht
+  mit Anleitung ab, wenn der Renderer-Build fehlt. Abgesichert in `packaging-config.test.ts`.
 - **CI lud keine Installer mehr hoch**: Der Upload-Glob zeigte auf `apps/desktop/release/*.exe`,
   electron-builder schreibt aber nach `release/<version>/` (`directories.output`). Ein Tag-Push
   hätte damit eine **Release ohne Assets** erzeugt. Der Glob greift jetzt eine Ebene tiefer

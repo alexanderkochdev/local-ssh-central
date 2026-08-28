@@ -9,10 +9,10 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "concurrently -k -n renderer,desktop \"vite --config ../renderer/vite.config.ts --port 5173\" \"wait-on tcp:127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 node scripts/run-electron-dev.mjs\"",
-    "build": "node scripts/generate-icons.mjs && pnpm --dir ../renderer build && electron-vite build && node scripts/copy-renderer.mjs",
-    "package": "pnpm run build && electron-builder --config electron-builder.yml --publish never",
-    "package:win": "pnpm run build && electron-builder --win --config electron-builder.yml --publish never",
-    "package:linux": "pnpm run build && electron-builder --linux --config electron-builder.yml --publish never",
+    "build": "node scripts/generate-icons.mjs && electron-vite build && node scripts/copy-renderer.mjs",
+    "package": "electron-builder --config electron-builder.yml --publish never",
+    "package:win": "electron-builder --win --config electron-builder.yml --publish never",
+    "package:linux": "electron-builder --linux --config electron-builder.yml --publish never",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
@@ -32,6 +32,7 @@
     "unzipper": "^0.12.5"
   },
   "devDependencies": {
+    "@ssh-central/renderer": "workspace:*",
     "@types/adm-zip": "^0.5.8",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.0.0",

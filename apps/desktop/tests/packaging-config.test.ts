@@ -137,3 +137,54 @@ describe('Release-Job', () => {
     expect('coverage-ubuntu-latest'.startsWith(prefix)).toBe(false);
   });
 });
+
+
+/**
+ * Der Renderer darf GENAU EINMAL gebaut werden. Fehlt die Abhaengigkeit, kennt Turbo keine
+ * Reihenfolge zwischen `renderer#build` und `desktop#build`; baute das Desktop-Paket den
+ * Renderer dann selbst noch einmal, liefen zwei Vite-Builds parallel in dasselbe `dist/`.
+ * Ergebnis: sporadisches "ENOENT ... .js.map" - gruen auf schnellen Rechnern mit warmem
+ * Turbo-Cache, rot in der CI.
+ */
+describe('Renderer-Build-Reihenfolge (Race-Schutz)', () => {
+  const desktopPkg = JSON.parse(readFileSync(join(desktopRoot, 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+
+  it('deklariert den Renderer als devDependency (erzeugt die Turbo-Kante)', () => {
+    expect(desktopPkg.devDependencies?.['@ssh-central/renderer']).toBe('workspace:*');
+    // Nur devDependency: electron-builder wuerde eine echte dependency in das asar packen.
+    expect(desktopPkg.dependencies?.['@ssh-central/renderer']).toBeUndefined();
+  });
+
+  it('baut den Renderer nicht selbst noch einmal', () => {
+    for (const [name, script] of Object.entries(desktopPkg.scripts)) {
+      if (name === 'dev') {
+        continue; // Der Dev-Server startet Vite bewusst direkt (kein Build in ein dist/).
+      }
+      expect(script, `Skript "${name}" darf den Renderer-Build nicht aufrufen`).not.toContain(
+        '../renderer build',
+      );
+    }
+  });
+
+  it('die package-Skripte bauen nicht selbst (Reihenfolge kommt von Turbo)', () => {
+    for (const name of ['package', 'package:win', 'package:linux']) {
+      expect(desktopPkg.scripts[name], `"${name}" darf keinen eigenen Build starten`).not.toContain(
+        'run build',
+      );
+      expect(desktopPkg.scripts[name]).toContain('--publish never');
+    }
+  });
+
+  it('die Root-Skripte bauen vor dem Paketieren ueber Turbo', () => {
+    const rootPkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    for (const name of ['package', 'package:win', 'package:linux']) {
+      expect(rootPkg.scripts[name], `Root-"${name}" muss zuerst bauen`).toContain('turbo run build');
+    }
+  });
+});
