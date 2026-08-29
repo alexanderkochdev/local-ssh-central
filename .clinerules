@@ -16,7 +16,9 @@
    Booleans mit `is`/`has`/`should`. Keine Abkürzungen.
 7. **Keine Emojis in Code, Docs, Prompts, Configs, Commit-Messages.**
 8. **Conventional Commits**: `feat:`, `fix:`, `refactor:`, `docs:`, `build:`, `chore:`, `test:`.
-9. **Prettier**: 2 Spaces, single quotes, LF. `pnpm format` vor Abschluss.
+9. **Prettier**: 2 Spaces, single quotes, LF, Zeilenbreite 120 (`.prettierrc.json`).
+   `pnpm format` vor Abschluss — aber nur auf den geänderten Dateien, nicht repo-weit
+   (`pnpm exec prettier --write <datei>`), sonst entstehen hunderte fremde Diffs.
 10. **Clean Code**: DRY, KISS, SRP. Keine toten Imports/Code, kein `console.log` im Product.
 11. **Fehlerbehandlung**: async → try/catch; Resourcen (Listener/Timer/Streams) aufräumen.
 12. **Security**: Eingaben validieren, Safe-Path-Guard für Pfade, keine Hardcoded Secrets.

@@ -17,15 +17,15 @@
 
 Workspace-Pakete (`pnpm-workspace.yaml`):
 
-| Pfad | Zweck | Kontext |
-|------|-------|---------|
-| `apps/desktop` | Electron Main + Preload | Node (Main-Process) |
-| `apps/renderer` | React + MUI Frontend | Renderer (sandboxed, Vite) |
-| `packages/ssh-core` | ssh2 Verbindungs- & Session-Manager | Node only |
-| `packages/sftp` | SFTP-Transfer-Engine | Node only |
-| `packages/vault` | KeePass/KDBX-Tresor (kdbxweb) | Node only |
-| `packages/ipc-contracts` | Geteilte Typen & IPC-Verträge | Node + Renderer |
-| `packages/ui` | Geteilte React-Komponenten & Theme | Renderer only |
+| Pfad                     | Zweck                               | Kontext                    |
+| ------------------------ | ----------------------------------- | -------------------------- |
+| `apps/desktop`           | Electron Main + Preload             | Node (Main-Process)        |
+| `apps/renderer`          | React + MUI Frontend                | Renderer (sandboxed, Vite) |
+| `packages/ssh-core`      | ssh2 Verbindungs- & Session-Manager | Node only                  |
+| `packages/sftp`          | SFTP-Transfer-Engine                | Node only                  |
+| `packages/vault`         | KeePass/KDBX-Tresor (kdbxweb)       | Node only                  |
+| `packages/ipc-contracts` | Geteilte Typen & IPC-Verträge       | Node + Renderer            |
+| `packages/ui`            | Geteilte React-Komponenten & Theme  | Renderer only              |
 
 **Scope-Name**: `@ssh-central/*` (z.B. `@ssh-central/vault`).
 
@@ -71,6 +71,30 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
   als Artifact; Tag-Push `vX.Y.Z` -> GitHub-Release mit Installern **und** Update-Metadaten
   (`latest*.yml`, `*.blockmap` - ohne die findet electron-updater kein Update).
   Kompletter Ablauf inkl. Fehlerbilder: `docs/releases.md`.
+
+## Verbindungen & SFTP-Dateimanager (wichtige Lehren)
+
+- **TOFU laeuft im `hostVerifier`** (`packages/ssh-core/src/connection-manager.ts`), also
+  WAEHREND des Handshakes. Niemals auf das ssh2-Event `hostkeys` warten, bevor `client.connect()`
+  aufgerufen wurde: Das Event kommt erst nach der Authentifizierung (und nur von OpenSSH) - der
+  Aufbau lief dadurch zwangsweise 15 s in einen Timeout und der Fingerprint war immer `undefined`.
+- **Verbindungen sind refcount-verwaltet.** `acquire` erhoeht, `release` gibt frei und beendet den
+  Client erst beim letzten Nutzer. Services duerfen `client.end()` NICHT selbst aufrufen (sonst
+  kappt das Schliessen eines Fensters die geteilte Verbindung eines anderen). Schlaegt der
+  Kanal-Aufbau (`shell`/`exec`/`sftp`) fehl, muss der Aufrufer `release` nachziehen.
+- **Drag & Drop** (`apps/renderer/src/features/sftp/drag-payload.ts`): `dataTransfer.getData()` ist
+  im `drop`-Handler unter Windows/Chromium nicht zuverlaessig - die Nutzlast wird zusaetzlich in
+  einem Modul-Zustand gehalten (`setDragPayload`/`readDragPayload`/`clearDragPayload`). `dragenter`
+  UND `dragover` muessen `preventDefault()` aufrufen. Drops aus dem Betriebssystem liefern Pfade
+  ueber `window.api.fs.pathForFile` (`webUtils.getPathForFile` im Preload, da `File.path` ab
+  Electron 32 fehlt). Transfer-Fehler immer sichtbar machen (`setError`) - ein stiller Rejection
+  sieht fuer den Nutzer wie "Drag & Drop tut nichts" aus.
+- **Pane-Aktionen sind reine Icon-Buttons mit Tooltip** (`features/sftp/SelectionActions.tsx`,
+  fuer beide Seiten dieselbe Komponente). Die Panes sind zu schmal fuer Textbuttons.
+  "Herunterladen zu ..." nutzt `dialog:saveFile` (eine Datei) bzw. `dialog:pickFolder` (mehrere
+  Eintraege/Ordner).
+- **Windows-Volume-Namen** (`fs.ipc.ts`) kosten einen PowerShell-Start: gecacht (60 s TTL),
+  dedupliziert, beim App-Start vorgewaermt; Laufwerksbuchstaben werden parallel geprueft.
 
 ## i18n (Pflicht)
 
@@ -136,7 +160,10 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 - **Sprache**: TypeScript, strict mode. Keine Emojis in Code/Docs/Configs.
 - **Naming**: funktionsbasiert & kontextbewusst — niemals Projekt-/Scope-Namen wiederholen.
   Booleans mit `is`/`has`/`should`-Präfix. Selbst-dokumentierende Namen (keine Abkürzungen).
-- **Formatierung**: Prettier (2 Spaces, single quotes, LF), siehe `.editorconfig`.
+- **Formatierung**: Prettier (2 Spaces, single quotes, LF, Zeilenbreite 120) — konfiguriert in
+  `.prettierrc.json`, generierte Artefakte in `.prettierignore`. Siehe auch `.editorconfig`.
+  `pnpm format` laeuft repo-weit; im Rahmen einer Aenderung nur die eigenen Dateien formatieren
+  (`pnpm exec prettier --write <datei>`), sonst entstehen hunderte fremde Diffs.
 - **Tests**: Vitest pro Paket (`pnpm --filter <pkg> test`). Tests liegen **separat** im Ordner
   `tests/` je Paket (nie in `src`), damit der Produktions-Build (`tsc -p tsconfig.json`, `include: src`)
   keine Testdateien nach `dist`/`out` kompiliert. Vitest-Configs filtern auf `tests/**/*.test.ts`;
@@ -155,27 +182,27 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
   86-87%, windows + session-windows 77-93%; verbleibend: dünne IPC-Registrierung
   `fs/hosts/ssh/sftp/plugins.ipc` + `index.ts`-Glue), **renderer ~23%** (Stores/i18n 100%,
   useSftpActions/SFTP-Logik, FilePane 46%, VaultGate-Login 46%, Settings-Komponenten + Clipboard-Guard
-  + Settings-Flow per jsdom; verbleibend: reine MUI-Präsentations-Views SftpView/HostsView/Terminal/
-  Dialoge).
-  **Strategie (risikoorientiert, bewusst):** Sicherheits- und Geschäftslogik ist priorisiert
-  abgedeckt; die verbleibenden Lücken sind dünne Präsentation/Glue mit geringem Risiko-Zugewinn
-  bei hohem Harness-Aufwand und sind als Backlog in `docs/roadmap.md` verankert. Thresholds erst
-  anheben, wenn die Abdeckung real steigt.
+  - Settings-Flow per jsdom; verbleibend: reine MUI-Präsentations-Views SftpView/HostsView/Terminal/
+    Dialoge).
+    **Strategie (risikoorientiert, bewusst):** Sicherheits- und Geschäftslogik ist priorisiert
+    abgedeckt; die verbleibenden Lücken sind dünne Präsentation/Glue mit geringem Risiko-Zugewinn
+    bei hohem Harness-Aufwand und sind als Backlog in `docs/roadmap.md` verankert. Thresholds erst
+    anheben, wenn die Abdeckung real steigt.
 - **Ordner**: `src/` je Paket mit klarer Trennung (`src/main`, `src/preload` in Desktop).
 
 ## Commands (Root)
 
-| Command | Zweck |
-|---------|-------|
-| `pnpm install` | Deps installieren |
-| `pnpm dev` | Electron + Renderer (Hot Reload) |
-| `pnpm build` | Alle Pakete + Apps bauen |
-| `pnpm package` | Installer bauen (Windows NSIS / Linux AppImage+deb) |
-| `pnpm test` | Vitest für alle Pakete |
+| Command              | Zweck                                               |
+| -------------------- | --------------------------------------------------- |
+| `pnpm install`       | Deps installieren                                   |
+| `pnpm dev`           | Electron + Renderer (Hot Reload)                    |
+| `pnpm build`         | Alle Pakete + Apps bauen                            |
+| `pnpm package`       | Installer bauen (Windows NSIS / Linux AppImage+deb) |
+| `pnpm test`          | Vitest für alle Pakete                              |
 | `pnpm test:coverage` | Vitest mit v8-Coverage + Thresholds (No-Regression) |
-| `pnpm typecheck` | TypeScript-Prüfung aller Pakete |
-| `pnpm lint` | ESLint |
-| `pnpm format` | Prettier schreiben |
+| `pnpm typecheck`     | TypeScript-Prüfung aller Pakete                     |
+| `pnpm lint`          | ESLint                                              |
+| `pnpm format`        | Prettier schreiben                                  |
 
 ## Dev-Modus & Troubleshooting (wichtig)
 

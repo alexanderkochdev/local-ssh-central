@@ -61,7 +61,10 @@ graph TD
    werden die `VaultSettings` aus der `.kdbx` geladen, ihre Main-Wirkungen (Auto-Lock,
    SFTP-Parallelität) angewandt und der Stand an die UI gepusht.
 2. **Verbinden**: Renderer ruft `ssh.connect(hostRef)` → Main holt Credentials aus dem
-   entschlüsselten Vault, baut ssh2-Verbindung auf, erstellt einen Terminal-Kanal.
+   entschlüsselten Vault, baut ssh2-Verbindung auf, erstellt einen Terminal-Kanal. Die
+   TOFU-Host-Key-Prüfung läuft im `hostVerifier` **während** des Handshakes — ein abweichender
+   Fingerprint bricht ab, bevor Zugangsdaten das Gerät verlassen, und kostet keinen zusätzlichen
+   Roundtrip.
 3. **Streaming**: Terminal-/SFTP-Daten laufen über einen pro Session eröffneten
    `MessageChannel` (hoher Durchsatz), Steuer-Kommandos über die IPC-Request/Response-API.
 4. **SFTP**: Renderer öffnet eine SFTP-Ansicht → Main erzeugt `SftpEngine`, liest/schreibt
@@ -85,6 +88,7 @@ graph LR
 ```
 
 Regeln:
+
 - **Nur `desktop`** darf `ssh-core`, `vault`, `sftp` als Laufzeit-Abhängigkeit importieren.
 - **`renderer`** importiert ausschließlich `ipc-contracts` (Typen/Contracts) und `ui`.
 - **`ipc-contracts`** enthält das gemeinsame Settings-Schema (`SettingDefinition`,
@@ -96,19 +100,19 @@ Regeln:
 
 Zentrale `interface` je Domäne, implementiert vom Main und von `window.api` (Preload):
 
-| Domäne | Kanal | Request → Response |
-|--------|-------|--------------------|
-| Vault | `vault:*` | `unlock`, `lock`, `status`, `create`, `changeMasterPassword`, `listEntries`, `entryGet` (Passwort für Clipboard-Guard), `getSecret` |
-| SSH | `ssh:*` | `connect`, `disconnect`, `listSessions`, `resize`, `exec` (nicht-interaktives Kommando für Multi-Host Runner) |
-| SFTP | `sftp:*` | `open`, `list`, `mkdir`, `rename`, `remove`, `upload`, `download`, `cancel` |
-| FS | `fs:*` | `listLocal`, `mkdirLocal`, `stat`, `listOpeners` |
-| Settings | `settings:*` | `get`, `set` (User + Vault), Push `settings:changed` |
-| Dialog | `dialog:*` | `pickFolder`, `pickFile` (native Electron-Dialoge) |
-| System | `system:*` | `getStats` (CPU, RAM, GPU, Speicher für die Statusleiste) |
-| Clipboard | `clipboard:*` | `write`, `read` (über Electron-Main, damit Leeren auch ohne Renderer-Fokus zuverlässig ist) |
-| Update | `update:*` | `check` (GitHub-Release-Check, nicht-blockierend), `open` (Release-Seite im Browser), `download`/`install`/`state` (In-App-Update via electron-updater) |
-| Plugins | `plugins:*` | `list`, `install`, `uninstall`, `enable`, `disable`, `grantPermission`, IPC-Bridge |
-| Fenster | `window:*` | `open` (Terminal/SFTP), `openPanel`, `setTitle` (Session-Name im Fenstertitel) |
+| Domäne    | Kanal         | Request → Response                                                                                                                                      |
+| --------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vault     | `vault:*`     | `unlock`, `lock`, `status`, `create`, `changeMasterPassword`, `listEntries`, `entryGet` (Passwort für Clipboard-Guard), `getSecret`                     |
+| SSH       | `ssh:*`       | `connect`, `disconnect`, `listSessions`, `resize`, `exec` (nicht-interaktives Kommando für Multi-Host Runner)                                           |
+| SFTP      | `sftp:*`      | `open`, `list`, `mkdir`, `rename`, `remove`, `upload`, `download`, `cancel`                                                                             |
+| FS        | `fs:*`        | `listLocal`, `mkdirLocal`, `stat`, `listOpeners`, `pathForFile` (Pfad einer per OS-Drag&Drop übergebenen Datei, `webUtils`)                             |
+| Settings  | `settings:*`  | `get`, `set` (User + Vault), Push `settings:changed`                                                                                                    |
+| Dialog    | `dialog:*`    | `pickFolder`, `pickFile`, `saveFile` ("Herunterladen zu ...") — native Electron-Dialoge, an das aufrufende Fenster gebunden                             |
+| System    | `system:*`    | `getStats` (CPU, RAM, GPU, Speicher für die Statusleiste)                                                                                               |
+| Clipboard | `clipboard:*` | `write`, `read` (über Electron-Main, damit Leeren auch ohne Renderer-Fokus zuverlässig ist)                                                             |
+| Update    | `update:*`    | `check` (GitHub-Release-Check, nicht-blockierend), `open` (Release-Seite im Browser), `download`/`install`/`state` (In-App-Update via electron-updater) |
+| Plugins   | `plugins:*`   | `list`, `install`, `uninstall`, `enable`, `disable`, `grantPermission`, IPC-Bridge                                                                      |
+| Fenster   | `window:*`    | `open` (Terminal/SFTP), `openPanel`, `setTitle` (Session-Name im Fenstertitel)                                                                          |
 
 Ereignisse (Main → Renderer) laufen über `vault:event`, `ssh:event`, `sftp:event`,
 `settings:changed`, `update:state`. Terminal-/SFTP-Datenströme über `MessageChannel`.
@@ -154,7 +158,7 @@ apps/renderer/src/
 │   ├── vault/              # VaultGate (Login/Unlock), VaultView, ChangePasswordDialog
 │   ├── hosts/              # Host-Liste + Manager (+ "Befehl ausführen" → Multi-Host Runner)
 │   ├── terminal/           # xterm.js-Ansicht + SessionBar (Name + Farbe, setTitle)
-│   ├── sftp/               # Side-by-Side File Manager
+│   ├── sftp/               # Side-by-Side File Manager (drag-payload.ts, SelectionActions.tsx)
 │   ├── settings/           # UserSettingsDialog, VaultSettingsDialog
 │   ├── command-palette/    # Globale Command Palette (Strg+P), palette-utils (testbar)
 │   ├── command-runner/     # MultiCommandDialog (paralleles Kommando auf N Hosts), format.ts

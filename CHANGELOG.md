@@ -4,6 +4,118 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Fixes & Verbesserungen
+
+- **SFTP-Transfers jetzt mit Pipelining (deutlich schneller)**: Statt der seriellen
+  Stream-Übertragung (bei der immer nur ein Chunk "in der Luft" ist und auf die
+  Server-Bestätigung wartet - Durchsatz ≈ Chunkgröße / Latenz) schickt der TransferManager
+  jetzt **viele SFTP-Read/Write-Requests parallel** ab (absolute Offsets, daher unabhängig).
+  Große Dateien laufen damit bei guter Bandbreite und geringer Latenz deutlich schneller,
+  bei **identischem Fortschritt und Abbrechen**. Die Übertragung nutzt `sftp.open/read/write/
+  close` + lokale FileHandles.
+- **SFTP-Settings in die Benutzer-Einstellungen verschoben + Bandbreiten-Limits**: "Parallele
+  SFTP-Transfers", "Standardprogramm für Dateien" und neue **"Max. Upload-/Download-Geschwindigkeit
+  (MB/s)"** liegen jetzt geräteweit in den Benutzer-Einstellungen (vor dem Unlock verfügbar). Die
+  Obergrenzen gelten **gesamt** (alle Uploads bzw. Downloads zusammen, 0 = unbegrenzt) und werden
+  über einen geteilten Rate-Limiter durchgesetzt - die Chunk-Zahl-Einstellung entfällt zugunsten
+  der leichter verständlichen MB/s-Obergrenzen.
+
+### Fixed
+
+- **SFTP-Transfer-Benachrichtigungen aufgeräumt**: Nach erfolgreichem Upload/Download (100 %)
+  wird die Fortschritts-Notification sofort entfernt, statt 4 s als "Abgeschlossen"-Toast zu
+  verweilen; erledigte und abgebrochene Transfers verschwinden außerdem aus der Transfer-Liste
+  unter dem Dateimanager. Fehler bleiben sichtbar (Fehler-Toast, 6 s). Zusätzlich sind jetzt
+  maximal **5** Notifications gleichzeitig sichtbar - die älteste wird automatisch verworfen
+  (vorher 10).
+- **Upload hing und blockierte die Transfer-Queue**: Der TransferManager wartete beim Abschluss
+  nur auf das `finish`-Event des **Ziel-Streams**. Der ssh2-**SFTP-WriteStream** (Upload-Ziel)
+  emittiert `finish`/`close` nicht zuverlässig (der lokale WriteStream beim Download schon) -
+  ein Upload wurde daher nie als `done` finalisiert, hielt seinen Parallelitäts-Slot fest und
+  blockierte alle nachfolgenden Transfers ("Upload geht nicht weiter", Fortschritts-Toasts
+  blieben bei 100 % stehen). Jetzt wird der Abschluss zusätzlich über das `end` des
+  **Quell-Streams** erkannt (alle Bytes gelesen und an den Writer gepusht) - das ist das zuverlässige
+  Signal für beide Richtungen; `finish`/`close` bestätigen weiterhin den Flush. Abgesichert durch
+  einen Regressionstest, der einen Writer simuliert, der weder `finish` noch `close` emittiert.
+- **SSH-/SFTP-Verbindungsaufbau war um 15 Sekunden verzögert (Hauptursache für "dauert
+  ewig")**: `ConnectionManager.connect()` wartete auf das ssh2-Event `hostkeys`, **bevor**
+  `client.connect()` überhaupt aufgerufen wurde. Das Event kann in diesem Moment nie kommen
+  (es wird erst nach der Authentifizierung gesendet, und nur von OpenSSH-Servern) — jeder
+  neue Verbindungsaufbau lief also zwangsläufig in den 15-Sekunden-Timeout, bevor die
+  Verbindung überhaupt begann. Terminal und SFTP nutzen getrennte Verbindungen, wodurch sich
+  der Effekt beim Öffnen beider Fenster verdoppelte. Die TOFU-Prüfung läuft jetzt im
+  `hostVerifier` **während** des Handshakes: kein Extra-Roundtrip, und ein abweichender
+  Host-Key bricht ab, **bevor** Zugangsdaten gesendet werden. Als Nebeneffekt war der
+  Fingerprint bisher immer `undefined` — TOFU-Speicherung und -Vergleich waren damit faktisch
+  wirkungslos und funktionieren jetzt tatsächlich.
+- **Drag & Drop im SFTP-Dateimanager**: mehrere Ursachen behoben — (1) `dataTransfer` ist im
+  `drop`-Handler unter Windows/Chromium nicht zuverlässig lesbar, deshalb trägt jetzt ein
+  Modul-Zustand die Nutzlast als Fallback (`features/sftp/drag-payload.ts`); (2) `dragenter`
+  rief kein `preventDefault()` auf, was Chromium für ein gültiges Drop-Ziel verlangt;
+  (3) Fehler beim Transfer wurden still verworfen (`.then()` ohne `catch`) und sahen aus wie
+  "nichts passiert" — sie erscheinen jetzt als Fehlermeldung; (4) ein Drop auf die lokale
+  Seite in der **Laufwerksauswahl** hat kein Zielverzeichnis und meldet das nun klar.
+- **SFTP-Session-Ende kappte fremde Sessions**: `SftpService.close()` beendete den ssh2-Client
+  direkt. Bei zwei SFTP-Fenstern zum selben Host teilen beide eine Verbindung (Multiplexing) —
+  das Schließen des einen Fensters brach damit auch die andere Session ab. Jetzt wird die
+  Referenz freigegeben (`release`), die Verbindung endet erst beim letzten Nutzer.
+- **Verbindungs-Leck bei fehlgeschlagenem Kanal-Aufbau**: Schlägt `shell`/`exec` (Terminal)
+  oder das SFTP-Subsystem fehl, wurde die bereits aufgebaute Verbindung nie freigegeben und
+  blieb dauerhaft offen.
+
+### Added
+
+- **"Herunterladen zu ..."** im SFTP-Dateimanager (Icon-Aktion in der Auswahlleiste und
+  Kontextmenü): Eine einzelne Datei fragt über den nativen Speichern-Dialog nach Zielpfad und
+  Dateinamen; bei mehreren Einträgen oder einem Ordner wird ein Zielverzeichnis gewählt.
+  Neuer IPC-Kanal `dialog:saveFile` (nur der Dateiname aus dem Renderer wird übernommen, das
+  Zielverzeichnis bestimmt der Dialog).
+- **Drag & Drop aus dem Betriebssystem** (Explorer/Finder) auf die Remote-Seite lädt Dateien
+  **und komplette Ordner** hoch. Der Pfad kommt über `webUtils.getPathForFile` aus dem Preload
+  (`File.path` gibt es seit Electron 32 nicht mehr).
+- **Mehrfachauswahl ziehen**: Wird ein markierter Eintrag gezogen, wandert die komplette
+  Auswahl mit; sonst nur der angefasste Eintrag.
+- **Sichtbares Drop-Ziel**: Das Ziel-Pane hebt sich während eines Drags mit Rahmen und
+  Hintergrund hervor.
+
+### Changed
+
+- **SFTP-Fortschritt wird aggregiert statt pro Datei** (nur im SFTP-Fenster): Statt eines Toasts
+  pro Datei zeigt das SFTP-Fenster jetzt **einen** Fortschritts-Toast für das gesamte Batch
+  ("Upload · 24 Dateien") mit Ladebalken, **explizitem Prozentwert** (basierend auf der
+  Gesamtdatenmenge), "x/24 fertig" und der **durchschnittlichen Übertragungsgeschwindigkeit**
+  (z. B. "1,2 MB/s"). Die **Anzahl und die Gesamtgröße** der Dateien werden **vor dem Transfer
+  rekursiv eingescant** (neue IPC `sftp:setBatchTotal`), damit der Zähler korrekt "fertig / gesamt"
+  zeigt statt "1/1, 2/2, …" zu laufen. Die alte **per-Datei-Transferliste** ("Upload: … → … /
+  running · X%") wurde zugunsten des einen Fortschritts-Toasts entfernt. Die Transfer-Toasts
+  wurden aus dem Hauptfenster entfernt und erscheinen nur noch im zugehörigen SFTP-Fenster.
+  Über einen **Abbrechen-Button** im Fortschritts-Toast lassen sich alle laufenden Uploads/
+  Downloads des Batches stoppen.
+- **SFTP-Aktionen sind reine Icon-Buttons mit Tooltip** (beide Seiten). Die Auswahlleiste war
+  mit Textbuttons in den schmalen Panes überladen; neue Komponente
+  `features/sftp/SelectionActions.tsx` (DRY für lokale und Remote-Seite). Auch
+  "Alle auswählen"/"Auswahl aufheben" sowie die Pfadleiste nutzen jetzt Tooltips statt
+  `title`-Attribute.
+- **Schnelleres Öffnen des SFTP-Fensters**: lokale und Remote-Seite werden parallel geladen;
+  die Windows-Volume-Namen (PowerShell-Aufruf, ~1 s beim ersten Mal) werden gecacht,
+  beim App-Start vorgewärmt und parallelisiert; Laufwerksbuchstaben werden gleichzeitig
+  geprüft, damit ein getrenntes Netzlaufwerk die Liste nicht mehr blockiert.
+- Native Datei-/Ordner-Dialoge sind jetzt an das aufrufende Fenster gebunden (modal über dem
+  richtigen Fenster, auch bei Session-Fenstern).
+- **Prettier-Konfiguration ergänzt** (`.prettierrc.json`, `.prettierignore`): Es gab bisher
+  keine, weshalb `pnpm format` die Prettier-Standardwerte benutzte (doppelte Anführungszeichen,
+  Zeilenbreite 80) und damit den gesamten Code gegen die dokumentierte Konvention umformatiert
+  hätte — inklusive `pnpm-lock.yaml`. Jetzt gilt die Konvention auch fürs Werkzeug: single
+  quotes, 2 Spaces, LF, Zeilenbreite 120; generierte Artefakte sind ausgenommen.
+
+- **Settings-Abschnitte einklappbar**: Die Überschriften in den Benutzer- und Vault-
+  Einstellungen sind jetzt einklappbare Gruppen (Standard: zugeklappt, per Klick manuell
+  aufklappen). Statt durch eine lange Liste zu scrollen, klappt man nur die gewünschte
+  Sektion auf (z. B. "Übertragung & Dateien"). Verschachtelte Unterabschnitte klappen
+  rekursiv ebenfalls ein/aus.
+
 ## [1.4.0] - 2026-08-28
 
 > **Einmalig manuell installieren**: Diese Version bringt das Selbst-Update mit. Installationen
@@ -12,6 +124,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 > **Ab v1.4.0 laufen alle weiteren Updates automatisch** (Windows-Installation und Linux-AppImage).
 
 ### Added
+
 - **Automatische Updates (electron-updater)**: Die App lädt ein neues Release jetzt selbst
   herunter und installiert es nach Bestätigung mit einem Neustart — kein manueller Download der
   `.exe`/`.AppImage` mehr. Neuer Service `apps/desktop/src/main/services/auto-updater.ts`
@@ -38,6 +151,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   unsichtbar und wären erst beim Release bzw. beim Endnutzer aufgefallen.
 
 ### Changed
+
 - **Packaging**: `publish: github` in `electron-builder.yml` — erzeugt `app-update.yml` in der
   Installation sowie `latest.yml`/`latest-linux.yml` und `*.blockmap` als Release-Assets.
   Die `package`-Skripte laufen explizit mit `--publish never`; das Veröffentlichen macht
@@ -48,6 +162,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   hätte die Datei nie gefunden.
 
 ### Fixed
+
 - **Sporadisch fehlschlagender Build (Race)**: `apps/desktop` deklarierte keine Abhängigkeit auf
   `@ssh-central/renderer`, baute den Renderer im eigenen Build-Skript aber ein zweites Mal. Turbo
   kannte damit keine Reihenfolge und führte beide Vite-Builds **parallel im selben `dist/`** aus —
@@ -67,6 +182,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [1.3.0] - 2026-08-25
 
 ### Added
+
 - **Quick Wins (Produktivität)**
   - **Multi-Host Command Runner** (`ssh:exec` + `packages/ssh-core/src/command-runner.ts`):
     führt ein Kommando **parallel auf mehreren Hosts** aus, zeigt Exit-Code + Output nebeneinander
@@ -91,6 +207,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   i18n-Parität, SFTP-Logik, VaultGate, FilePane, SystemBar, Clipboard-Guard, Settings-Flow).
 
 ### Changed
+
 - **Zwischenablage über Electron-Main** statt `navigator.clipboard`: das automatische Leeren
   kopierter Passwörter funktioniert zuverlässig, auch wenn das Fenster den Fokus verloren hat.
 - **Zahlen-Settings editierbar**: neues `NumberSettingInput` (lokaler String-State, Commit bei
@@ -105,6 +222,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   `window:attachSftp`, `clipboard:write`/`read`, `update:check`/`open`.
 
 ### Fixed
+
 - **Terminal-/SFTP-Fenster**: Sessions/SFTP-Verbindungen blieben beim Schließen des Fensters im
   Hintergrund offen (React-Unmount-Cleanup unzuverlässig) → jetzt main-seitig über
   `window:attachSession`/`window:attachSftp` sauber getrennt.
@@ -118,6 +236,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   (kein schleichendes Memory-Wachstum über lange Sessions).
 
 ### Security
+
 - **Clipboard-Guard**: Vault-Passwörter werden nicht dauerhaft als Klartext in der Zwischenablage
   belassen, sondern nach konfigurierbarer Zeit (Standard 10 s) automatisch entfernt — mit
   expliziter Bestätigung vor jedem Kopieren.
@@ -125,6 +244,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [1.2.0] - 2026-08-24
 
 ### Added
+
 - **Hardware-Infoleiste (SystemBar)** — untere Leiste im Hauptfenster UND im Login-Screen:
   - Zeigt den **eigenen** Verbrauch des Programms: CPU (App), RAM (App-RSS), Disk (App-Datenverzeichnis)
   - **Netzwerk Up/Down** in KB/s (systemweit, Delta-basiert über `netstat`/`/proc/net/dev`)
@@ -143,6 +263,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   FilePane, SystemBar).
 
 ### Fixed
+
 - **SFTP-Drag&Drop**: Chromium/Electron verwarf den Custom-MIME-Typ im `dataTransfer`;
   jetzt wird zusätzlich `text/plain` als Träger gesetzt und gelesen.
 - **Host-Referenz-Wechsel**: Beim Auswählen einer bestehenden Vault-Passwort-Referenz wird
@@ -150,6 +271,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   Login-User aktiv).
 
 ### Changed
+
 - **CI**: Test-Schritt erzwingt nun die Coverage-Thresholds (`pnpm test:coverage` statt `pnpm test`).
 - **Dokumentation überarbeitet**: `AGENTS.md`, `ARCHITECTURE.md` (IPC-Tabelle + Dateistruktur),
   `docs/roadmap.md` gekürzt, `docs/mvp-scope.md` entfernt, `docs/plugins.md` +
@@ -159,6 +281,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [1.1.0] - 2026-08-22
 
 ### Added
+
 - **Plugins: `api.settings.getAll()`** — Plugins koennen die App-Settings read-only abfragen
   (neue Permission `'settings'`). Liefert `user` (geräteweit) + `vault` (pro .kdbx).
 - **Schema-getriebenes Settings-System** (völlig neu):
@@ -176,6 +299,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [1.0.1] - 2026-08-22
 
 ### Fixed
+
 - **Light-Theme crashte die gesamte App** (kritisch): `createAppTheme('light')` lieferte
   `background: undefined`, wodurch MUI's Deep-Merge `palette.background = undefined` setzte
   und der Theme-Aufbau mit "Cannot read properties of undefined" scheiterte. Da es kein
@@ -206,6 +330,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 Erster Open-Source-Release (GPL-3.0).
 
 ### Added (Release-Highlights)
+
 - **Sortierung + Filter** in allen Listen (Hosts, Passwörter, SSH-Keys) inkl. Tags/Notizen-Anzeige
 - **Security-Härtung**: TOFU-Host-Key-Verifizierung (MitM-Schutz), Unlock-Brute-Force-Throttle,
   Pfad-Guards (assertSafePath/assertNotProtected), Master-Passwort-Policy (≥12 Zeichen),
@@ -218,6 +343,7 @@ Erster Open-Source-Release (GPL-3.0).
 - **CI**: Package + Artifacts bei jedem Push; App-Logo (Header + Login)
 
 ### Added
+
 - **i18n (DE/EN)**: `useTranslation()` + Woerterbuecher (`src/i18n/translations.ts`),
   Sprachwahl persistiert; Pflegepflicht fuer beide Sprachen dokumentiert
 - **Settings-Dialog**: Sprache, Design (Dunkel/Hell), Terminal-Schriftgroesse,
@@ -226,6 +352,7 @@ Erster Open-Source-Release (GPL-3.0).
   statt `/` (viele Server erlauben kein `/`-Listing); editierbare Pfade beidseitig
 
 ### Fixed
+
 - **SFTP „missing directory handle or path"**: stale-closure (Handle war beim Laden noch
   `null`) -> Handle wird jetzt via Ref gefuehrt, Remote-Liste laedt sofort
 - **SSH-Keychain** (`@ssh-central/vault`): Key-Generierung (Ed25519/RSA) + Import
@@ -239,6 +366,7 @@ Erster Open-Source-Release (GPL-3.0).
 - **Master-Passwort-Aenderung** ueber das UI
 
 ### Fixed
+
 - **Vault-Status nach Neustart**: `status()` meldete bei vorhandener Vault-Datei faelschlich
   `no-vault` (In-Memory-Zustand), sodass die UI wieder den Erstellen-Screen zeigte.
   Jetzt: existierende Datei => `locked` -> Unlock-Screen.
@@ -258,11 +386,13 @@ Erster Open-Source-Release (GPL-3.0).
   - Vitest-Suite (10 Asserts: Round-Trip, falsches Passwort, Mindestlänge, CRUD, Passwortwechsel)
 
 ### Verified
+
 - `pnpm build` / `pnpm test` / `pnpm typecheck` laufen grün (Monorepo-Workspaces)
 - **Dev-Modus** (`pnpm dev`) startet Renderer (Vite) + Electron mit Hot Reload
 - Packaged App lädt Renderer über Custom-`app://`-Protocol (ES-Module + file://)
 
 ### Fixed
+
 - **Electron-Dev startete nicht**: pnpm blockierte den Electron-Postinstall (Binary fehlte)
   → `allowBuilds: electron` + `pnpm rebuild electron`
 - **`electron.protocol` undefined / V8-Snapshot-Crash**: `ELECTRON_RUN_AS_NODE=1` in der
@@ -276,6 +406,7 @@ Erster Open-Source-Release (GPL-3.0).
   → Renderer über Custom-`app://`-Protocol (fs-Read, asar-bewusst) servieren
 
 ### Planned (MVP)
+
 - KeePass/KDBX-Vault mit Master-Passwort-Entschlüsselung (Argon2)
 - SSH-Verbindungs- & Session-Manager (unbegrenzt parallel)
 - SFTP File Manager mit Side-by-Side-Ansicht
