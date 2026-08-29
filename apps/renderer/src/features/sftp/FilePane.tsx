@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 're
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
-import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
@@ -21,6 +20,7 @@ import ListItemText from '@mui/material/ListItemText';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import ClearAllIcon from '@mui/icons-material/ClearAll';
 import { Virtuoso } from 'react-virtuoso';
+import { dragSelection } from './drag-payload.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 
 export interface PaneEntry {
@@ -55,8 +55,13 @@ interface FilePaneProps {
   onPaneContextMenu?: (x: number, y: number) => void;
   /** Linksklick auf eine Datei -> oeffnen (mit Programmauswahl). */
   onOpenFile?: (entry: PaneEntry) => void;
-  /** Drag-Start eines Items. */
-  onFileDragStart?: (entry: PaneEntry, e: DragEvent) => void;
+  /**
+   * Drag-Start. Uebergeben werden ALLE zu ziehenden Eintraege: die gesamte Auswahl, wenn
+   * das gezogene Element Teil der Auswahl ist, sonst nur dieses Element.
+   */
+  onFileDragStart?: (entries: PaneEntry[], e: DragEvent) => void;
+  /** Ende eines Drag-Vorgangs (auch bei Abbruch) - raeumt den Drag-Zustand auf. */
+  onFileDragEnd?: () => void;
   /** Drop auf das Pane. */
   onPaneDrop?: (e: DragEvent) => void;
 }
@@ -93,7 +98,10 @@ function sortEntries(entries: PaneEntry[], sortBy: SortBy, sortDir: SortDir): Pa
     }
     const cmp =
       sortBy === 'name'
-        ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+        ? a.name.localeCompare(b.name, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          })
         : sortBy === 'size'
           ? (a.size ?? 0) - (b.size ?? 0)
           : (a.modifiedAt ?? 0) - (b.modifiedAt ?? 0);
@@ -119,12 +127,15 @@ export function FilePane({
   onPaneContextMenu,
   onOpenFile,
   onFileDragStart,
+  onFileDragEnd,
   onPaneDrop,
 }: FilePaneProps) {
   const { t } = useTranslation();
   const [pathInput, setPathInput] = useState(path);
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // dragenter/dragleave feuern auch fuer Kind-Elemente -> zaehlen statt Boolean setzen.
+  const [dragDepth, setDragDepth] = useState(0);
 
   useEffect(() => {
     setPathInput(path);
@@ -132,29 +143,67 @@ export function FilePane({
 
   const sorted = useMemo(() => sortEntries(entries, sortBy, sortDir), [entries, sortBy, sortDir]);
 
+  /** Alle Eintraege, die mit dem angefassten Element gezogen werden sollen. */
+  function dragEntries(entry: PaneEntry): PaneEntry[] {
+    return dragSelection(entry, selected, sorted);
+  }
+
   return (
     <Box
-      sx={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minWidth: 0,
+        position: 'relative',
+        ...(dragDepth > 0
+          ? {
+              outline: '2px dashed',
+              outlineOffset: -2,
+              outlineColor: 'primary.main',
+              bgcolor: 'action.hover',
+            }
+          : {}),
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         onPaneContextMenu?.(e.clientX, e.clientY);
+      }}
+      // Chromium akzeptiert einen Drop nur, wenn dragenter UND dragover
+      // preventDefault aufrufen.
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setDragDepth((depth) => depth + 1);
       }}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
       }}
+      onDragLeave={() => setDragDepth((depth) => Math.max(0, depth - 1))}
       onDrop={(e) => {
         e.preventDefault();
+        setDragDepth(0);
         onPaneDrop?.(e);
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0.5, borderBottom: 1, borderColor: 'divider' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          p: 0.5,
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
+      >
         <Typography variant="subtitle2" sx={{ pl: 1, minWidth: 60, flexShrink: 0 }}>
           {title}
         </Typography>
-        <IconButton size="small" onClick={onUp} title={t('sftp.up')}>
-          <ArrowUpwardIcon fontSize="small" />
-        </IconButton>
+        <Tooltip title={t('sftp.up')}>
+          <IconButton size="small" onClick={onUp} aria-label={t('sftp.up')}>
+            <ArrowUpwardIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <TextField
           size="small"
           variant="outlined"
@@ -171,9 +220,11 @@ export function FilePane({
             '& .MuiInputBase-root': { fontSize: 12, fontFamily: 'monospace' },
           }}
         />
-        <IconButton size="small" onClick={() => onNavigatePath(pathInput.trim())} title={t('sftp.refresh')}>
-          <RefreshIcon fontSize="small" />
-        </IconButton>
+        <Tooltip title={t('sftp.refresh')}>
+          <IconButton size="small" onClick={() => onNavigatePath(pathInput.trim())} aria-label={t('sftp.refresh')}>
+            <RefreshIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <Select
           size="small"
           value={sortBy}
@@ -204,17 +255,19 @@ export function FilePane({
             bgcolor: 'action.selected',
           }}
         >
-          <Typography variant="caption" sx={{ mr: 1, whiteSpace: 'nowrap' }}>
+          <Typography variant="caption" sx={{ mr: 0.5, whiteSpace: 'nowrap' }}>
             {selected.size} {t('sftp.selected')}
           </Typography>
-          <Button size="small" onClick={onSelectAll}>
-            <DoneAllIcon fontSize="small" sx={{ mr: 0.5 }} />
-            {t('sftp.selectAll')}
-          </Button>
-          <Button size="small" onClick={onClearSelection}>
-            <ClearAllIcon fontSize="small" sx={{ mr: 0.5 }} />
-            {t('sftp.clearSelection')}
-          </Button>
+          <Tooltip title={t('sftp.selectAll')}>
+            <IconButton size="small" onClick={onSelectAll} aria-label={t('sftp.selectAll')}>
+              <DoneAllIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={t('sftp.clearSelection')}>
+            <IconButton size="small" onClick={onClearSelection} aria-label={t('sftp.clearSelection')}>
+              <ClearAllIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Box sx={{ flexGrow: 1 }} />
           {selectionActions}
         </Box>
@@ -242,7 +295,8 @@ export function FilePane({
                   <ListItemButton
                     selected={isChecked}
                     draggable
-                    onDragStart={(e) => onFileDragStart?.(entry, e)}
+                    onDragStart={(e) => onFileDragStart?.(dragEntries(entry), e)}
+                    onDragEnd={() => onFileDragEnd?.()}
                     onClick={() => (entry.isDirectory ? onNavigate(entry) : onOpenFile?.(entry))}
                     onDoubleClick={() => entry.isDirectory && onNavigate(entry)}
                     onContextMenu={(e) => {
@@ -270,9 +324,15 @@ export function FilePane({
                     </ListItemIcon>
                     <ListItemText
                       primary={entry.name}
-                      secondary={details ? `${details} · ${formatDate(entry.modifiedAt)}` : formatDate(entry.modifiedAt)}
+                      secondary={
+                        details ? `${details} · ${formatDate(entry.modifiedAt)}` : formatDate(entry.modifiedAt)
+                      }
                       sx={{
-                        '& .MuiListItemText-primary': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                        '& .MuiListItemText-primary': {
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        },
                       }}
                     />
                   </ListItemButton>
