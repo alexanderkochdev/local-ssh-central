@@ -1,0 +1,9 @@
+# Generierte und fremde Artefakte nie formatieren.
+pnpm-lock.yaml
+**/dist/**
+**/out/**
+**/coverage/**
+apps/desktop/release/**
+apps/desktop/release-local/**
+apps/desktop/build/**
+examples/**/dist/**
