@@ -136,7 +136,7 @@ Beiträge sind willkommen. Bitte:
 
 1. [CONTRIBUTING.md](CONTRIBUTING.md) lesen (Branching, Commits, Tests, PR-Prozess).
 2. Conventional Commits (`feat:`, `fix:`, `refactor:`, …) verwenden.
-3. `pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build` grün halten
+3. `pnpm verify` grün halten (Typecheck, Lint, Coverage, Build — ohne Turbo-Cache)
    (inkl. Coverage-Thresholds, siehe [CONTRIBUTING.md](CONTRIBUTING.md)).
 4. Alle Änderungen an `CHANGELOG.md`, `AGENTS.md` & `ARCHITECTURE.md` spiegeln.
 5. Keine Secrets/`.kdbx`-Dateien committen — siehe `.gitignore`.

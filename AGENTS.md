@@ -188,6 +188,11 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
     abgedeckt; die verbleibenden Lücken sind dünne Präsentation/Glue mit geringem Risiko-Zugewinn
     bei hohem Harness-Aufwand und sind als Backlog in `docs/roadmap.md` verankert. Thresholds erst
     anheben, wenn die Abdeckung real steigt.
+- **Test-Fixtures fuer Settings**: Objekte vom Typ `UserSettingsValues` / `VaultSettingsValues`
+  IMMER aus `USER_SETTINGS_DEFAULTS` / `VAULT_SETTINGS_DEFAULTS` (aus `ipc-contracts`) ableiten
+  (`{ ...USER_SETTINGS_DEFAULTS, theme: 'light' }`) und nie von Hand nachbauen. Handgeschriebene
+  Literale driften bei jedem neuen Setting auseinander und brechen den Typecheck (genau so ist
+  der CI-Lauf zu `e75bf13` rot geworden).
 - **Ordner**: `src/` je Paket mit klarer Trennung (`src/main`, `src/preload` in Desktop).
 
 ## Commands (Root)
@@ -202,6 +207,7 @@ Workspace-Pakete (`pnpm-workspace.yaml`):
 | `pnpm test:coverage` | Vitest mit v8-Coverage + Thresholds (No-Regression) |
 | `pnpm typecheck`     | TypeScript-Prüfung aller Pakete                     |
 | `pnpm lint`          | ESLint                                              |
+| `pnpm verify`        | Ganze CI-Suite ohne Turbo-Cache (`--force`)         |
 | `pnpm format`        | Prettier schreiben                                  |
 
 ## Dev-Modus & Troubleshooting (wichtig)

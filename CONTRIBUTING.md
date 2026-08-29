@@ -45,6 +45,7 @@ Nützliche Skripte (Root):
 | `pnpm test:coverage` | Vitest mit v8-Coverage + Thresholds (No-Regression) |
 | `pnpm typecheck` | TypeScript-Prüfung (inkl. Tests) |
 | `pnpm lint` | ESLint |
+| `pnpm verify` | Komplette CI-Suite **ohne Turbo-Cache** (Typecheck, Lint, Coverage, Build) |
 | `pnpm format` | Prettier schreiben |
 | `pnpm package` | Installer für die **eigene** Plattform bauen (`apps/desktop/release/<version>/`) |
 
@@ -90,8 +91,14 @@ Verwende **Conventional Commits**:
 Jede Änderung muss die Check-Suite grün halten:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build
+pnpm verify
 ```
+
+`pnpm verify` führt Typecheck, Lint, Coverage und Build **mit `--force`** aus, also ohne
+Turbo-Cache. Nur das entspricht dem CI-Lauf: ein zwischenzeitlich geändertes Paket (z. B. ein
+neues Feld in `ipc-contracts`) kann bei gecachten Tasks lokal grün bleiben und erst in der CI
+auffallen. Die Einzelbefehle (`pnpm typecheck`, `pnpm lint`, `pnpm test:coverage`, `pnpm build`)
+bleiben für schnelle Zwischenläufe sinnvoll.
 
 - **Tests** liegen in separaten `tests/`-Ordnern pro Paket (nie in `src/`), damit sie nicht in
   den Build kompilieren. Reine Logik wird als exportierte Funktion getestet, um ohne
@@ -119,7 +126,7 @@ pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build
 
 1. Branch von `develop` abzweigen.
 2. Änderungen committen (Conventional Commits).
-3. Sicherstellen, dass `pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build` grün sind.
+3. Sicherstellen, dass `pnpm verify` grün ist (Typecheck, Lint, Coverage, Build ohne Cache).
 4. PR gegen `develop` öffnen. Fülle die [Pull-Request-Vorlage](.github/PULL_REQUEST_TEMPLATE.md)
    aus und verlinke das zugehörige Issue.
 5. Review + Diskussion abwarten; Änderungswünsche als neue Commits, nicht per Force-Push

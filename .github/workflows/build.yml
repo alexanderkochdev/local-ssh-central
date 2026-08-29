@@ -91,10 +91,10 @@ jobs:
             echo "| Test + Coverage | ${{ steps.test.outcome || 'skipped' }} |"
             echo "| Build | ${{ steps.package-build.outcome || 'skipped' }} |"
             echo ""
-            echo "Lokal reproduzieren:"
+            echo "Lokal reproduzieren (ohne Turbo-Cache, exakt wie hier):"
             echo '```bash'
             echo 'pnpm install --frozen-lockfile'
-            echo 'pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build'
+            echo 'pnpm verify'
             echo '```'
             echo ""
             echo "Bei Coverage-Fehlern: Artifact \`coverage-${{ matrix.os }}\` herunterladen."

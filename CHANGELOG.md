@@ -6,6 +6,19 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Fixed (CI)
+
+- **CI auf `develop` war rot (Typecheck)**: Die Plugin-Manager-Testfixture baute
+  `UserSettingsValues` von Hand nach und wurde beim Verschieben der SFTP-Einstellungen in die
+  Benutzer-Einstellungen nicht mitgezogen (`sftpConcurrency`, `defaultOpener`, `maxUploadSpeed`,
+  `maxDownloadSpeed` fehlten -> `TS2739`). Lokal blieb der Lauf grün, weil Turbo den
+  `typecheck`-Task aus dem Cache bediente. Alle Settings-Fixtures leiten sich jetzt aus
+  `USER_SETTINGS_DEFAULTS` / `VAULT_SETTINGS_DEFAULTS` ab und können deshalb nicht mehr
+  auseinanderdriften.
+- **Neues Skript `pnpm verify`**: führt Typecheck, Lint, Coverage und Build **mit `--force`**
+  (ohne Turbo-Cache) aus und entspricht damit exakt dem CI-Lauf. Das Failure-Summary der CI,
+  README, CONTRIBUTING, PR-Vorlage, `AGENTS.md` und `docs/releases.md` verweisen darauf.
+
 ### Fixes & Verbesserungen
 
 - **SFTP-Transfers jetzt mit Pipelining (deutlich schneller)**: Statt der seriellen

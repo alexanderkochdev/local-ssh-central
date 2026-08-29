@@ -32,11 +32,13 @@ pnpm dev                    # Electron + Renderer mit Hot Reload
 Die **gleiche Check-Suite wie in der CI** vor jedem PR:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build
+pnpm verify
 ```
 
-> `pnpm test:coverage` (nicht `pnpm test`) — nur diese Variante erzwingt die
-> Coverage-Thresholds, die die CI ebenfalls prüft.
+> `pnpm verify` = `typecheck`, `lint`, `test:coverage`, `build` **mit `--force`**, also ohne
+> Turbo-Cache. Nur so entspricht der Lauf der CI: gecachte Tasks können lokal grün bleiben,
+> obwohl eine Änderung in einem anderen Paket sie faktisch invalidiert hat.
+> `pnpm test:coverage` (nicht `pnpm test`) erzwingt zusätzlich die Coverage-Thresholds.
 
 ### `pnpm package` vs. CI
 
@@ -85,7 +87,7 @@ feature/foo ──► develop ◄── feature/bar
 3. **`CHANGELOG.md`** ergänzen: `## [x.y.z] - JJJJ-MM-TT` mit
    `Added` / `Changed` / `Fixed` / `Removed` / `Security`.
 4. **Living Docs** prüfen: `AGENTS.md`, `ARCHITECTURE.md`, `docs/roadmap.md`, dieses Dokument.
-5. **Checks grün**: `pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build`.
+5. **Checks grün**: `pnpm verify` (ohne Turbo-Cache, wie die CI).
 6. **Commit** `chore(release): vx.y.z`, PR gegen `main`, Review, Merge.
 7. **Tag setzen und pushen** — das ist der Auslöser für die Veröffentlichung:
 
