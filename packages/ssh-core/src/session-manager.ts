@@ -26,16 +26,23 @@ export class SessionManager {
   ): Promise<TerminalSession> {
     const client = await this.connections.acquire(hostId, config);
 
-    const stream = await new Promise<import('ssh2').ClientChannel>((resolve, reject) => {
-      const cb = (err: Error | undefined, s: import('ssh2').ClientChannel) =>
-        err ? reject(err) : resolve(s);
-      // Mit `command` ein einzelnes Kommando (mit PTY) ausfuehren, sonst eine interaktive Shell.
-      if (command) {
-        client.exec(command, { pty: { term: 'xterm-256color', cols, rows } }, cb);
-      } else {
-        client.shell({ term: 'xterm-256color', cols, rows }, cb);
-      }
-    });
+    let stream: import('ssh2').ClientChannel;
+    try {
+      stream = await new Promise<import('ssh2').ClientChannel>((resolve, reject) => {
+        const cb = (err: Error | undefined, s: import('ssh2').ClientChannel) => (err ? reject(err) : resolve(s));
+        // Mit `command` ein einzelnes Kommando (mit PTY) ausfuehren, sonst eine interaktive Shell.
+        if (command) {
+          client.exec(command, { pty: { term: 'xterm-256color', cols, rows } }, cb);
+        } else {
+          client.shell({ term: 'xterm-256color', cols, rows }, cb);
+        }
+      });
+    } catch (err) {
+      // Kanal konnte nicht geoeffnet werden: Referenz freigeben, sonst bleibt die
+      // Verbindung fuer immer offen (refcount-Leak).
+      this.connections.release(hostId);
+      throw err;
+    }
 
     const id = randomUUID();
     const session = this.buildSession(id, hostId, stream);
@@ -77,11 +84,7 @@ export class SessionManager {
     }
   }
 
-  private buildSession(
-    id: string,
-    hostId: string,
-    stream: import('ssh2').ClientChannel,
-  ): TerminalSession {
+  private buildSession(id: string, hostId: string, stream: import('ssh2').ClientChannel): TerminalSession {
     const dataListeners = new Set<(chunk: Buffer) => void>();
     const closeListeners = new Set<(err?: Error) => void>();
     const errorListeners = new Set<(err: Error) => void>();

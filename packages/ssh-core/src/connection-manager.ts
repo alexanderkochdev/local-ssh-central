@@ -7,15 +7,20 @@ import type { HostConnectionConfig } from './types.js';
  * abweicht (moeglicher Man-in-the-Middle). Kein erwarteter oder kein empfangener Fingerprint
  * => keine Pruefung (reine Funktion, separat testbar).
  */
-export function verifyHostKey(
-  expectedFingerprint: string | undefined,
-  receivedFingerprint: string | undefined,
-): void {
+export function verifyHostKey(expectedFingerprint: string | undefined, receivedFingerprint: string | undefined): void {
   if (expectedFingerprint && receivedFingerprint && receivedFingerprint !== expectedFingerprint) {
     throw new Error(
       `Host-Key geändert! Erwartet ${expectedFingerprint}, erhalten ${receivedFingerprint}. Möglicher Man-in-the-Middle-Angriff.`,
     );
   }
+}
+
+/**
+ * Bildet den OpenSSH-Fingerprint (`SHA256:<base64>`) eines Host-Key-Blobs. Reine Funktion,
+ * damit sie ohne Verbindung testbar ist.
+ */
+export function fingerprintOf(publicKey: Buffer): string {
+  return `SHA256:${createHash('sha256').update(publicKey).digest('base64')}`;
 }
 
 interface ManagedConnection {
@@ -108,39 +113,44 @@ export class ConnectionManager {
 
   private async connect(hostId: string, config: HostConnectionConfig): Promise<Client> {
     const client = new Client();
-
-    const fingerprint = await new Promise<string | undefined>((resolve) => {
-      // ssh2 liefert beim Verbindungsaufbau die Host-Keys. TOFU: Fingerprint merken/pruefen.
-      const timeout = setTimeout(() => resolve(undefined), 15_000);
-      client.on('hostkeys', (keys) => {
-        clearTimeout(timeout);
-        const key = keys[0] as { getPublicSSH(): Buffer } | undefined;
-        resolve(key ? this.fingerprintOf(key) : undefined);
-      });
-    });
+    let fingerprint: string | undefined;
+    let hostKeyError: Error | undefined;
 
     try {
-      verifyHostKey(config.expectedFingerprint, fingerprint);
+      await new Promise<void>((resolve, reject) => {
+        client.once('ready', () => resolve());
+        client.once('error', (err) => reject(hostKeyError ?? err));
+        client.connect({
+          host: config.host,
+          port: config.port,
+          username: config.username,
+          password: config.password,
+          privateKey: config.privateKey,
+          passphrase: config.passphrase,
+          readyTimeout: config.readyTimeout ?? 15_000,
+          keepaliveInterval: config.keepaliveInterval ?? 15_000,
+          keepaliveCountMax: 3,
+          // TOFU WAEHREND des Handshakes: ssh2 uebergibt den Host-Key-Blob, bevor
+          // authentifiziert wird. Ein abweichender Key bricht die Verbindung sofort ab
+          // (kein Passwort geht an einen fremden Host) - und der Aufbau kostet keinen
+          // zusaetzlichen Roundtrip. Das frueher benutzte `hostkeys`-Event kommt erst
+          // NACH der Authentifizierung und nur von OpenSSH-Servern.
+          hostVerifier: (key: Buffer) => {
+            fingerprint = fingerprintOf(key);
+            try {
+              verifyHostKey(config.expectedFingerprint, fingerprint);
+              return true;
+            } catch (err) {
+              hostKeyError = err as Error;
+              return false;
+            }
+          },
+        });
+      });
     } catch (err) {
       client.end();
       throw err;
     }
-
-    await new Promise<void>((resolve, reject) => {
-      client.once('ready', () => resolve());
-      client.once('error', (err) => reject(err));
-      client.connect({
-        host: config.host,
-        port: config.port,
-        username: config.username,
-        password: config.password,
-        privateKey: config.privateKey,
-        passphrase: config.passphrase,
-        readyTimeout: config.readyTimeout ?? 15_000,
-        keepaliveInterval: config.keepaliveInterval ?? 15_000,
-        keepaliveCountMax: 3,
-      });
-    });
 
     const managed: ManagedConnection = {
       client,
@@ -155,10 +165,5 @@ export class ConnectionManager {
       }
     });
     return client;
-  }
-
-  private fingerprintOf(key: { getPublicSSH(): Buffer }): string {
-    const hash = createHash('sha256').update(key.getPublicSSH()).digest('base64');
-    return `SHA256:${hash}`;
   }
 }
