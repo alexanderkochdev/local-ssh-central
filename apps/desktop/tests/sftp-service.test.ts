@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => {
-  const cmInstances: Array<{ acquire: ReturnType<typeof vi.fn>; getFingerprint: ReturnType<typeof vi.fn>; disposeAll: ReturnType<typeof vi.fn> }> = [];
+  const cmInstances: Array<{
+    acquire: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+    getFingerprint: ReturnType<typeof vi.fn>;
+    disposeAll: ReturnType<typeof vi.fn>;
+  }> = [];
   const engineInstances: Array<{
     list: ReturnType<typeof vi.fn>;
     mkdir: ReturnType<typeof vi.fn>;
@@ -12,14 +17,23 @@ const mocks = vi.hoisted(() => {
     fastPut: ReturnType<typeof vi.fn>;
     createFile: ReturnType<typeof vi.fn>;
   }> = [];
-  const tmInstances: Array<{ enqueue: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn>; cancelAll: ReturnType<typeof vi.fn> }> = [];
+  const tmInstances: Array<{
+    enqueue: ReturnType<typeof vi.fn>;
+    cancel: ReturnType<typeof vi.fn>;
+    cancelAll: ReturnType<typeof vi.fn>;
+  }> = [];
+  const limiterInstances: Array<{
+    setBytesPerSecond: ReturnType<typeof vi.fn>;
+    wait: ReturnType<typeof vi.fn>;
+  }> = [];
   const openWithMock = vi.fn();
-  return { cmInstances, engineInstances, tmInstances, openWithMock };
+  return { cmInstances, engineInstances, tmInstances, limiterInstances, openWithMock };
 });
 
 vi.mock('@ssh-central/ssh-core', () => {
   class MockConnectionManager {
     acquire = vi.fn();
+    release = vi.fn();
     getFingerprint = vi.fn();
     disposeAll = vi.fn();
     constructor() {
@@ -51,12 +65,23 @@ vi.mock('@ssh-central/sftp', () => {
       mocks.tmInstances.push(this);
     }
   }
-  return { SftpEngine: MockEngine, TransferManager: MockTransferManager };
+  class MockRateLimiter {
+    setBytesPerSecond = vi.fn();
+    wait = vi.fn().mockResolvedValue(undefined);
+    constructor() {
+      mocks.limiterInstances.push(this);
+    }
+  }
+  return { SftpEngine: MockEngine, TransferManager: MockTransferManager, RateLimiter: MockRateLimiter };
 });
 
-vi.mock('../src/main/services/openers.js', () => ({ openWith: mocks.openWithMock }));
+vi.mock('../src/main/services/openers.js', () => ({
+  openWith: mocks.openWithMock,
+}));
 vi.mock('electron', () => ({ app: { getPath: vi.fn(() => 'C:/Temp') } }));
-vi.mock('electron-log', () => ({ default: { warn: vi.fn(), info: vi.fn(), error: vi.fn() } }));
+vi.mock('electron-log', () => ({
+  default: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+}));
 vi.mock('node:fs', () => ({ watch: vi.fn(() => ({ close: vi.fn() })) }));
 
 import { SftpService } from '../src/main/services/sftp-service.js';
@@ -71,18 +96,24 @@ function makeService() {
 
 /** Fake-SFTP-Wrapper mit realpath. */
 function makeSftp() {
-  return { realpath: vi.fn((_p: string, cb: (err: Error | undefined, p?: string) => void) => cb(undefined, '/home/user')) };
+  return {
+    realpath: vi.fn((_p: string, cb: (err: Error | undefined, p?: string) => void) => cb(undefined, '/home/user')),
+  };
 }
 
 /** Fake-Client: sftp() liefert den Fake-Wrapper, end() ist beobachtbar. */
 function makeClient(sftp: ReturnType<typeof makeSftp>) {
-  return { sftp: vi.fn((cb: (err: Error | undefined, s?: unknown) => void) => cb(undefined, sftp)), end: vi.fn() };
+  return {
+    sftp: vi.fn((cb: (err: Error | undefined, s?: unknown) => void) => cb(undefined, sftp)),
+    end: vi.fn(),
+  };
 }
 
 beforeEach(() => {
   mocks.cmInstances.length = 0;
   mocks.engineInstances.length = 0;
   mocks.tmInstances.length = 0;
+  mocks.limiterInstances.length = 0;
   mocks.openWithMock.mockReset();
 });
 
@@ -119,7 +150,10 @@ describe('SftpService', () => {
     const engine = mocks.engineInstances[0]!;
 
     engine.list.mockResolvedValue([]);
-    await expect(service.list(handle, '/dir')).resolves.toEqual({ path: '/dir', entries: [] });
+    await expect(service.list(handle, '/dir')).resolves.toEqual({
+      path: '/dir',
+      entries: [],
+    });
 
     await service.mkdir(handle, '/new');
     expect(engine.mkdir).toHaveBeenCalledWith('/new');
@@ -152,13 +186,18 @@ describe('SftpService', () => {
     const transfer = { id: 'tr1', direction: 'upload' };
     tm.enqueue.mockReturnValue(transfer);
     expect(service.upload(handle, '/l', '/r')).toBe(transfer);
-    expect(tm.enqueue).toHaveBeenCalledWith('upload', '/l', '/r', expect.objectContaining({ onUpdate: expect.any(Function) }));
+    expect(tm.enqueue).toHaveBeenCalledWith(
+      'upload',
+      '/l',
+      '/r',
+      expect.objectContaining({ onUpdate: expect.any(Function) }),
+    );
 
     expect(service.download(handle, '/l2', '/r2')).toBe(transfer);
     expect(tm.enqueue).toHaveBeenCalledWith('download', '/l2', '/r2', expect.anything());
   });
 
-  it('close stoppt Transfers und schliesst die Verbindung; require wirft danach', async () => {
+  it('close stoppt Transfers und gibt die Verbindung frei; require wirft danach', async () => {
     const { service } = makeService();
     const client = makeClient(makeSftp());
     mocks.cmInstances[0]!.acquire.mockResolvedValue(client);
@@ -166,8 +205,23 @@ describe('SftpService', () => {
 
     service.close(handle);
     expect(mocks.tmInstances[0]!.cancelAll).toHaveBeenCalled();
-    expect(client.end).toHaveBeenCalled();
+    // Nicht client.end(): bei zwei SFTP-Fenstern zum gleichen Host wuerde das die
+    // gemeinsame Verbindung der anderen Session mitkappen.
+    expect(client.end).not.toHaveBeenCalled();
+    expect(mocks.cmInstances[0]!.release).toHaveBeenCalledWith('sftp:h1');
     await expect(service.list(handle, '/')).rejects.toThrow('SFTP-Session nicht gefunden');
+  });
+
+  it('open gibt die Verbindung frei, wenn das SFTP-Subsystem fehlschlaegt', async () => {
+    const { service } = makeService();
+    const client = {
+      sftp: vi.fn((cb: (err: Error) => void) => cb(new Error('sftp unavailable'))),
+      end: vi.fn(),
+    };
+    mocks.cmInstances[0]!.acquire.mockResolvedValue(client);
+
+    await expect(service.open('h1')).rejects.toThrow('sftp unavailable');
+    expect(mocks.cmInstances[0]!.release).toHaveBeenCalledWith('sftp:h1');
   });
 
   it('openRemoteFile laedt in den Temp-Ordner, ueberwacht und oeffnet', async () => {
@@ -190,5 +244,15 @@ describe('SftpService', () => {
     await service.dispose();
     expect(mocks.tmInstances[0]!.cancelAll).toHaveBeenCalled();
     expect(mocks.cmInstances[0]!.disposeAll).toHaveBeenCalled();
+  });
+
+  it('setBandwidth begrenzt Upload/Download ueber die Rate-Limiter', () => {
+    const { service } = makeService();
+    service.setBandwidth(10, 20);
+    const [up, down] = mocks.limiterInstances;
+    expect(up).toBeTruthy();
+    expect(down).toBeTruthy();
+    expect(up!.setBytesPerSecond).toHaveBeenCalledWith(10 * 1024 * 1024);
+    expect(down!.setBytesPerSecond).toHaveBeenCalledWith(20 * 1024 * 1024);
   });
 });
