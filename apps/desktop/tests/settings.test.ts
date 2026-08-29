@@ -67,9 +67,9 @@ describe('VaultSettings (pro .kdbx, portabel)', () => {
     await settings.load();
     expect(settings.get()).toEqual(VAULT_SETTINGS_DEFAULTS);
 
-    await settings.update({ autoLockMinutes: 60, sftpConcurrency: 8 });
+    await settings.update({ autoLockMinutes: 60, clipboardClearSeconds: 30 });
     expect(settings.get().autoLockMinutes).toBe(60);
-    expect(settings.get().sftpConcurrency).toBe(8);
+    expect(settings.get().clipboardClearSeconds).toBe(30);
 
     // Persistiert ueber lock/unlock (jede .kdbx = portable Einheit).
     vault.lock();
@@ -79,7 +79,7 @@ describe('VaultSettings (pro .kdbx, portabel)', () => {
     const reloaded = new VaultSettings(new KdbxVaultSettingsStorage(vault));
     await reloaded.load();
     expect(reloaded.get().autoLockMinutes).toBe(60);
-    expect(reloaded.get().sftpConcurrency).toBe(8);
+    expect(reloaded.get().clipboardClearSeconds).toBe(30);
 
     // App-Settings erscheinen NICHT als Passwort-Eintrag.
     expect(vault.listEntries()).toHaveLength(0);
@@ -92,7 +92,7 @@ describe('VaultSettings (pro .kdbx, portabel)', () => {
 
     const settings = new VaultSettings(new KdbxVaultSettingsStorage(vault));
     await settings.load();
-    await settings.update({ sftpConcurrency: 999 });
-    expect(settings.get().sftpConcurrency).toBe(16); // max clamp
+    await settings.update({ clipboardClearSeconds: 999 });
+    expect(settings.get().clipboardClearSeconds).toBe(300); // max clamp
   });
 });

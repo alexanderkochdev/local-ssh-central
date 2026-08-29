@@ -122,7 +122,7 @@ describe('SettingComponent', () => {
 });
 
 describe('SettingSectionComponent', () => {
-  it('rendert eine Section mit Info-Hover und Einklapp-Toggle', () => {
+  it('rendert eine Section mit Info-Hover und Einklapp-Toggle (zugeklappt, manuell aufklappen)', () => {
     const section: SettingSection = {
       id: 'appearance',
       title: 'settings.section.appearance',
@@ -138,12 +138,16 @@ describe('SettingSectionComponent', () => {
       />,
     );
     expect(screen.getByText('settings.section.appearance')).toBeTruthy();
+    // Standard: zugeklappt -> Setting (Select) ist noch nicht sichtbar.
+    expect(screen.queryByRole('combobox')).toBeNull();
+    // Manuell aufklappen -> Setting erscheint.
+    fireEvent.click(screen.getByText('settings.section.appearance'));
     expect(screen.getByRole('combobox')).toBeTruthy();
   });
 });
 
 describe('SettingsRenderer', () => {
-  it('rendert alle Sections eines Baums', () => {
+  it('rendert alle Sections eines Baums (zugeklappt, aufgeklappt sichtbar)', () => {
     const sections: SettingSection[] = [
       {
         id: 'a',
@@ -160,6 +164,10 @@ describe('SettingsRenderer', () => {
     render(<SettingsRenderer sections={sections} values={{ alpha: 'x', beta: false }} onChange={() => {}} t={t} />);
     expect(screen.getByText('settings.section.a')).toBeTruthy();
     expect(screen.getByText('settings.section.b')).toBeTruthy();
+    expect(screen.queryByRole('textbox')).toBeNull(); // zugeklappt
+
+    // Aufklappen -> Settings sichtbar.
+    fireEvent.click(screen.getByText('settings.section.a'));
     expect(screen.getAllByRole('textbox').length).toBeGreaterThanOrEqual(1);
   });
 });

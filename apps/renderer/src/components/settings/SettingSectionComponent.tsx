@@ -20,9 +20,10 @@ interface SettingSectionComponentProps {
 }
 
 /**
- * Rendert EINEN SettingSection-Baum (rekursiv).
+ * Rendert EINEN SettingSection-Baum (rekursiv) als einklappbare Gruppe.
  *
- * - Abschnittsueberschrift (i18n) mit Info-Hover + Einklapp-Icon (Tree).
+ * - Jede Abschnittsueberschrift (i18n) ist per Klick ein-/ausklappbar (Standard: zugeklappt,
+ *   manuell aufklappen). Info-Hover zeigt die Beschreibung.
  * - Jede `SettingDefinition` in `section.settings` wird ATOMAR ueber
  *   `<SettingComponent>` gerendert - dadurch sind alle Settings immer identisch
  *   aufgebaut (Label links, Info-Hover, Input rechts).
@@ -33,15 +34,12 @@ export function SettingSectionComponent({
   values,
   onChange,
   t,
-  defaultExpanded = true,
+  defaultExpanded = false,
 }: SettingSectionComponentProps) {
   const [open, setOpen] = useState(defaultExpanded);
-  const hasSections = (section.sections?.length ?? 0) > 0;
 
   const toggle = () => {
-    if (hasSections) {
-      setOpen((previous) => !previous);
-    }
+    setOpen((previous) => !previous);
   };
 
   return (
@@ -51,22 +49,21 @@ export function SettingSectionComponent({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          cursor: hasSections ? 'pointer' : 'default',
+          cursor: 'pointer',
+          userSelect: 'none',
           mb: 1,
         }}
         onClick={toggle}
       >
-        {hasSections && (
-          <IconButton
-            size="small"
-            sx={{
-              transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-              transition: 'transform 0.2s',
-            }}
-          >
-            <ExpandMoreIcon fontSize="small" />
-          </IconButton>
-        )}
+        <IconButton
+          size="small"
+          sx={{
+            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+            transition: 'transform 0.2s',
+          }}
+        >
+          <ExpandMoreIcon fontSize="small" />
+        </IconButton>
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
           {t(section.title)}
         </Typography>
@@ -79,14 +76,14 @@ export function SettingSectionComponent({
         )}
       </Box>
 
-      {/* Inhalt: Settings + verschachtelte Sections */}
-      <Collapse in={!hasSections || open} timeout="auto" unmountOnExit>
+      {/* Inhalt: Settings + verschachtelte Sections (aufklappbar) */}
+      <Collapse in={open} timeout="auto" unmountOnExit>
         <Box
           sx={{
             display: 'flex',
             flexDirection: 'column',
             gap: 1.5,
-            pl: hasSections ? 2 : 0,
+            pl: 2,
             mb: 2,
           }}
         >

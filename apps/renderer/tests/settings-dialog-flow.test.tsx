@@ -30,7 +30,10 @@ describe('VaultSettingsDialog Clipboard-Feld (kompletter Flow)', () => {
   it('Wert 0 -> 5 tippen + Blur behaelt 5 im Feld UND im Store', async () => {
     render(<VaultSettingsDialog open onClose={() => undefined} />);
 
-    // Spinbuttons in Render-Reihenfolge: autoLock(0), clipboardClearSeconds(1), sftpConcurrency(2)
+    // Section ist zugeklappt -> erst aufklappen, damit die Settings sichtbar sind.
+    fireEvent.click(screen.getByText('Sicherheit'));
+
+    // Spinbuttons in Render-Reihenfolge: autoLock(0), clipboardClearSeconds(1).
     const inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[];
     const clipboard = inputs[1]!;
     expect(clipboard.value).toBe('0');

@@ -11,6 +11,8 @@ export const settings: Record<string, string> = {
   'settings.never': 'Never',
   'settings.minutes': 'minutes',
   'settings.sftpConcurrency': 'Parallel SFTP transfers',
+  'settings.maxUploadSpeed': 'Max upload speed (MB/s)',
+  'settings.maxDownloadSpeed': 'Max download speed (MB/s)',
   'settings.fileOpeners': 'File open mappings',
   'settings.remove': 'Remove',
   'settings.defaultOpener': 'Default program for files',
@@ -34,6 +36,8 @@ export const settings: Record<string, string> = {
   'settings.clipboardClearSeconds.description':
     'Seconds after which a copied vault password is automatically removed from the clipboard (0 = never).',
   'settings.sftpConcurrency.description': 'Number of parallel SFTP transfers (1–16).',
+  'settings.maxUploadSpeed.description': 'Total limit for all uploads in MB/s (0 = unlimited).',
+  'settings.maxDownloadSpeed.description': 'Total limit for all downloads in MB/s (0 = unlimited).',
   'settings.defaultOpener.description': 'Default program to open files.',
   'settings.language.de': 'German',
   'settings.language.en': 'English',

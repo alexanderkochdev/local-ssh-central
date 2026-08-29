@@ -72,6 +72,14 @@ export interface UserSettingsValues {
   pingTarget: string;
   /** Hardware-Infoleiste (CPU/RAM/GPU/Disk/Netzwerk) unten im Hauptfenster anzeigen. */
   showSystemBar: boolean;
+  /** Anzahl paralleler SFTP-Transfers gesamt. */
+  sftpConcurrency: number;
+  /** Standardprogramm zum Öffnen von Dateien. */
+  defaultOpener: string;
+  /** Obergrenze Upload in MB/s (0 = unbegrenzt). */
+  maxUploadSpeed: number;
+  /** Obergrenze Download in MB/s (0 = unbegrenzt). */
+  maxDownloadSpeed: number;
 }
 
 export const USER_SETTINGS_DEFAULTS: UserSettingsValues = {
@@ -81,6 +89,10 @@ export const USER_SETTINGS_DEFAULTS: UserSettingsValues = {
   showDebugLog: false,
   pingTarget: '8.8.8.8',
   showSystemBar: true,
+  sftpConcurrency: 3,
+  defaultOpener: 'default',
+  maxUploadSpeed: 0,
+  maxDownloadSpeed: 0,
 };
 
 export const USER_SETTINGS_DEFINITIONS: SettingDefinition[] = [
@@ -137,14 +149,53 @@ export const USER_SETTINGS_DEFINITIONS: SettingDefinition[] = [
     description: 'settings.showSystemBar.description',
     default: USER_SETTINGS_DEFAULTS.showSystemBar,
   },
+  {
+    key: 'sftpConcurrency',
+    type: 'number',
+    label: 'settings.sftpConcurrency',
+    description: 'settings.sftpConcurrency.description',
+    default: USER_SETTINGS_DEFAULTS.sftpConcurrency,
+    min: 1,
+    max: 16,
+    step: 1,
+  },
+  {
+    key: 'maxUploadSpeed',
+    type: 'number',
+    label: 'settings.maxUploadSpeed',
+    description: 'settings.maxUploadSpeed.description',
+    default: USER_SETTINGS_DEFAULTS.maxUploadSpeed,
+    min: 0, // 0 = unbegrenzt
+    max: 1000,
+    step: 1,
+  },
+  {
+    key: 'maxDownloadSpeed',
+    type: 'number',
+    label: 'settings.maxDownloadSpeed',
+    description: 'settings.maxDownloadSpeed.description',
+    default: USER_SETTINGS_DEFAULTS.maxDownloadSpeed,
+    min: 0, // 0 = unbegrenzt
+    max: 1000,
+    step: 1,
+  },
+  {
+    key: 'defaultOpener',
+    type: 'select',
+    label: 'settings.defaultOpener',
+    description: 'settings.defaultOpener.description',
+    default: USER_SETTINGS_DEFAULTS.defaultOpener,
+    options: [
+      { value: 'default', label: 'sftp.systemDefault' },
+      { value: '__ask__', label: 'settings.alwaysAsk' },
+    ],
+  },
 ];
 
 // ------------------------------------------------------------------ Vault (pro Vault)
 
 export interface VaultSettingsValues {
   autoLockMinutes: number;
-  sftpConcurrency: number;
-  defaultOpener: string;
   /** Sekunden, nach denen ein kopiertes Vault-Passwort automatisch aus der Zwischenablage entfernt wird (0 = nie). */
   clipboardClearSeconds: number;
   /** Dateiendung (ohne Punkt, klein) -> Opener-ID. Sonderfall: wird nicht ueber das generische Schema gerendert. */
@@ -153,8 +204,6 @@ export interface VaultSettingsValues {
 
 export const VAULT_SETTINGS_DEFAULTS: VaultSettingsValues = {
   autoLockMinutes: 15,
-  sftpConcurrency: 3,
-  defaultOpener: 'default',
   clipboardClearSeconds: 10,
   fileOpeners: {},
 };
@@ -169,27 +218,6 @@ export const VAULT_SETTINGS_DEFINITIONS: SettingDefinition[] = [
     min: 0, // 0 = nie
     max: 1440,
     step: 5,
-  },
-  {
-    key: 'sftpConcurrency',
-    type: 'number',
-    label: 'settings.sftpConcurrency',
-    description: 'settings.sftpConcurrency.description',
-    default: VAULT_SETTINGS_DEFAULTS.sftpConcurrency,
-    min: 1,
-    max: 16,
-    step: 1,
-  },
-  {
-    key: 'defaultOpener',
-    type: 'select',
-    label: 'settings.defaultOpener',
-    description: 'settings.defaultOpener.description',
-    default: VAULT_SETTINGS_DEFAULTS.defaultOpener,
-    options: [
-      { value: 'default', label: 'sftp.systemDefault' },
-      { value: '__ask__', label: 'settings.alwaysAsk' },
-    ],
   },
   {
     key: 'clipboardClearSeconds',
@@ -231,6 +259,14 @@ export const USER_SETTINGS_SECTIONS: SettingSection[] = [
     title: 'settings.section.network',
     settings: USER_SETTINGS_DEFINITIONS.filter((def) => def.key === 'pingTarget'),
   },
+  {
+    id: 'transfer',
+    title: 'settings.section.transfer',
+    description: 'settings.section.transfer.description',
+    settings: USER_SETTINGS_DEFINITIONS.filter((def) =>
+      ['sftpConcurrency', 'maxUploadSpeed', 'maxDownloadSpeed', 'defaultOpener'].includes(def.key),
+    ),
+  },
 ];
 
 /** VaultSettings als Section-Tree (pro .kdbx, portabel). */
@@ -243,16 +279,7 @@ export const VAULT_SETTINGS_SECTIONS: SettingSection[] = [
       ['autoLockMinutes', 'clipboardClearSeconds'].includes(def.key),
     ),
   },
-  {
-    id: 'transfer',
-    title: 'settings.section.transfer',
-    description: 'settings.section.transfer.description',
-    settings: VAULT_SETTINGS_DEFINITIONS.filter((def) =>
-      ['sftpConcurrency', 'defaultOpener'].includes(def.key),
-    ),
-  },
 ];
-
 /**
  * Gemeinsamer Sanitizer: merget `patch` auf `base`, fuer definierte Keys mit
  * Default-/Clamp-/Validierungs-Logik. Nicht definierte Keys (z.B. `fileOpeners`)

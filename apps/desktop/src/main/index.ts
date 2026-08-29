@@ -1,7 +1,7 @@
 import { app, dialog, ipcMain, BrowserWindow, clipboard, net, shell } from 'electron';
 import log from 'electron-log/main';
 import { autoUpdater } from 'electron-updater';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import {
   IpcChannels,
   USER_SETTINGS_DEFAULTS,
@@ -76,10 +76,13 @@ let vaultSettings: VaultSettings | null = null;
 
 /** Pusht eine Settings-Änderung an alle Fenster (user UND vault). */
 function emitSettings(scope: SettingsScope, values: UserSettingsValues | VaultSettingsValues): void {
-  emit(IpcChannels.settingsChanged, { scope, values } satisfies SettingsChangedPayload);
+  emit(IpcChannels.settingsChanged, {
+    scope,
+    values,
+  } satisfies SettingsChangedPayload);
 }
 
-/** Wendet Vault-Settings an, die im Main wirken (Auto-Lock + SFTP-Parallelität). */
+/** Wendet Vault-Settings an, die im Main wirken (Auto-Lock). */
 function applyVaultSettings(values: VaultSettingsValues): void {
   // Auto-Lock
   const minutes = values.autoLockMinutes;
@@ -88,8 +91,12 @@ function applyVaultSettings(values: VaultSettingsValues): void {
   if (autoLockMs > 0) {
     scheduleAutoLock();
   }
-  // SFTP-Parallelität
+}
+
+/** Wendet User-Settings an, die im Main wirken (SFTP-Parallelitaet + Bandbreiten-Limits). */
+function applyUserSettings(values: UserSettingsValues): void {
   services.sftp?.setConcurrency(Math.max(1, Math.min(16, values.sftpConcurrency)));
+  services.sftp?.setBandwidth(Math.max(0, values.maxUploadSpeed), Math.max(0, values.maxDownloadSpeed));
 }
 
 /** Laedt die VaultSettings aus der gerade entsperrten .kdbx, wendet Wirkungen an und meldet den Stand an die UI. */
@@ -123,7 +130,10 @@ function scheduleAutoLock(): void {
     void services.ssh?.dispose();
     void services.sftp?.dispose();
     services.vault?.lock();
-    emit(IpcChannels.vaultEvent, { type: 'autoLocked', reason: 'Inaktivitaet' });
+    emit(IpcChannels.vaultEvent, {
+      type: 'autoLocked',
+      reason: 'Inaktivitaet',
+    });
   }, autoLockMs);
 }
 
@@ -185,16 +195,10 @@ app.whenReady().then(async () => {
 
   services.vault = vault;
   services.hosts = hosts;
-  services.ssh = new SshService(
-    getConfig,
-    (event) => emit(IpcChannels.sshEvent, event),
-    persistFingerprint,
-  );
-  services.sftp = new SftpService(
-    getConfig,
-    (event) => emit(IpcChannels.sftpEvent, event),
-    persistFingerprint,
-  );
+  services.ssh = new SshService(getConfig, (event) => emit(IpcChannels.sshEvent, event), persistFingerprint);
+  services.sftp = new SftpService(getConfig, (event) => emit(IpcChannels.sftpEvent, event), persistFingerprint);
+  // User-Settings wirken schon vor dem Unlock im Main (SFTP-Parallelitaet + Bandbreiten-Limits).
+  applyUserSettings(userSettings!.get());
   sessionWindows = new SessionWindowManager(services);
 
   // Dialog-Broker: Plugin-Dialoge -> Renderer anzeigen, Antwort zurück.
@@ -221,14 +225,18 @@ app.whenReady().then(async () => {
       return { id: transfer.id };
     },
     sftpCancel: async (id) => services.sftp.cancel(id),
-    openWindow: async (url, opts) => ({ id: sessionWindows!.openPanel(url, opts) }),
+    openWindow: async (url, opts) => ({
+      id: sessionWindows!.openPanel(url, opts),
+    }),
     closeWindow: async (id) => sessionWindows!.closeWindow(id),
     openTerminalWindow: async (hostId, command) => {
       const session = await services.ssh.connect(hostId, 80, 24, command);
       const id = sessionWindows!.openTerminalWindow(hostId, session.id);
       return { id, sessionId: session.id };
     },
-    openSftpWindow: async (hostId) => ({ id: sessionWindows!.openSftpWindow(hostId) }),
+    openSftpWindow: async (hostId) => ({
+      id: sessionWindows!.openSftpWindow(hostId),
+    }),
     dialog: (request, plugin) => pluginBroker.show(request, plugin),
     emitToUi: (push) => emit(IpcChannels.pluginsIpcEvent, push),
   };
@@ -313,13 +321,18 @@ app.whenReady().then(async () => {
     IpcChannels.settingsSet,
     async (
       _event,
-      request: { scope: SettingsScope; patch: Partial<UserSettingsValues> | Partial<VaultSettingsValues> },
+      request: {
+        scope: SettingsScope;
+        patch: Partial<UserSettingsValues> | Partial<VaultSettingsValues>;
+      },
     ) => {
       if (request.scope === 'user') {
         const values = await userSettings!.update(request.patch as Partial<UserSettingsValues>);
         emitSettings('user', values);
         // Latenz-Ziel bei Änderung sofort neu setzen.
         setPingTarget(values.pingTarget);
+        // SFTP-Parallelitaet + Bandbreiten-Limits anwenden.
+        applyUserSettings(values);
         return values;
       }
       const values = await vaultSettings!.update(request.patch as Partial<VaultSettingsValues>);
@@ -329,14 +342,37 @@ app.whenReady().then(async () => {
     },
   );
 
-  // Native Ordner-/Datei-Dialoge (für SettingDefinition type 'folder'/'file').
-  ipcMain.handle(IpcChannels.dialogPickFolder, async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-    return result.canceled ? null : result.filePaths[0] ?? null;
+  // Native Ordner-/Datei-Dialoge (für SettingDefinition type 'folder'/'file' und
+  // "Herunterladen zu ..."). Immer an das aufrufende Fenster gebunden, damit der Dialog
+  // modal ueber dem richtigen Fenster erscheint (auch bei Session-Fenstern).
+  const dialogParent = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null =>
+    BrowserWindow.fromWebContents(event.sender);
+
+  ipcMain.handle(IpcChannels.dialogPickFolder, async (event) => {
+    const parent = dialogParent(event);
+    const options: Electron.OpenDialogOptions = {
+      properties: ['openDirectory'],
+    };
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
   });
-  ipcMain.handle(IpcChannels.dialogPickFile, async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openFile'] });
-    return result.canceled ? null : result.filePaths[0] ?? null;
+  ipcMain.handle(IpcChannels.dialogPickFile, async (event) => {
+    const parent = dialogParent(event);
+    const options: Electron.OpenDialogOptions = { properties: ['openFile'] };
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+  ipcMain.handle(IpcChannels.dialogSaveFile, async (event, request: { suggestedName?: string } | undefined) => {
+    const parent = dialogParent(event);
+    // Nur den Dateinamen uebernehmen: ein vom Renderer geschickter Pfad darf das
+    // Zielverzeichnis nicht vorgeben.
+    const suggested = request?.suggestedName ? basename(request.suggestedName) : undefined;
+    const options: Electron.SaveDialogOptions = {
+      ...(suggested ? { defaultPath: suggested } : {}),
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    };
+    const result = parent ? await dialog.showSaveDialog(parent, options) : await dialog.showSaveDialog(options);
+    return result.canceled || !result.filePath ? null : result.filePath;
   });
 
   // System-Ressourcen fuer die Statusleiste (CPU, RAM, GPU, Speicher).
@@ -355,9 +391,7 @@ app.whenReady().then(async () => {
   // GitHub-Update-Check (beim App-Start vom Renderer abgefragt, nicht-blockierend).
   // `canAutoUpdate` sagt der UI, ob sie das Update selbst laden darf oder auf die
   // Release-Seite verweisen muss (.deb / Dev-Modus).
-  ipcMain.handle(IpcChannels.updateCheck, () =>
-    releaseChecker.check(app.getVersion(), autoUpdates.isSupported()),
-  );
+  ipcMain.handle(IpcChannels.updateCheck, () => releaseChecker.check(app.getVersion(), autoUpdates.isSupported()));
   ipcMain.on(IpcChannels.updateOpen, (_event, url: string) => {
     if (typeof url === 'string' && /^https:\/\//.test(url)) {
       void shell.openExternal(url);
