@@ -1,7 +1,8 @@
 import type { SFTPWrapper } from 'ssh2';
-import { createReadStream, createWriteStream } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import type { Readable, Writable } from 'node:stream';
+import { open } from 'node:fs/promises';
+import type { RateLimiter } from './rate-limiter.js';
+import type { FileHandle } from 'node:fs/promises';
 import type {
   TransferDirection,
   TransferInfo,
@@ -18,9 +19,20 @@ export interface TransferHooks {
   onUpdate: (info: TransferInfo) => void;
 }
 
+/** Chunkgroesse pro SFTP-Read/Write-Request (wg. SFTP-Paketlimit konservativ 32 KB). */
+const PIPELINE_CHUNK = 32 * 1024;
+/** Standard-Anzahl gleichzeitig "in der Luft" befindlicher Chunks (Pipelining). */
+const PIPELINE_CONCURRENCY = 32;
+
 /**
  * Verwaltet parallele SFTP-Transfers (Upload/Download) mit begrenzter Parallelitaet,
- * Fortschritts-Reporting und Abbrechen. Stream-basiert (kein Puffern grosser Dateien im RAM).
+ * Fortschritts-Reporting, Abbrechen und Pipelining.
+ *
+ * Statt der seriellen Stream-Uebertragung (createReadStream/createWriteStream - dort ist immer
+ * nur EIN Chunk in der Luft, was die Geschwindigkeit auf "Chunkgroesse / Latenz" begrenzt)
+ * werden viele SFTP-Read/Write-Requests **parallel** abgeschickt (absolute Offsets, daher
+ * unabhaengig). Das macht grosse Dateien bei guter Bandbreite und geringer Latenz deutlich
+ * schneller - bei identischem Fortschritt/Abbrechen.
  */
 export class TransferManager {
   private readonly queue: TransferTask[] = [];
@@ -31,6 +43,9 @@ export class TransferManager {
   constructor(
     private readonly sftp: SFTPWrapper,
     private readonly maxConcurrent = 3,
+    private readonly pipelineConcurrency = PIPELINE_CONCURRENCY,
+    private readonly uploadLimiter?: RateLimiter,
+    private readonly downloadLimiter?: RateLimiter,
   ) {}
 
   get all(): TransferInfo[] {
@@ -105,17 +120,9 @@ export class TransferManager {
       task.info.totalBytes = total;
 
       if (direction === 'upload') {
-        await this.transfer(
-          task,
-          () => createReadStream(localPath),
-          (path) => this.sftp.createWriteStream(path),
-        );
+        await this.transferUpload(task, localPath, remotePath, total);
       } else {
-        await this.transfer(
-          task,
-          () => this.sftp.createReadStream(remotePath),
-          (path) => createWriteStream(path),
-        );
+        await this.transferDownload(task, localPath, remotePath, total);
       }
 
       if (signal.aborted) {
@@ -134,50 +141,134 @@ export class TransferManager {
     }
   }
 
-  private async transfer(
+  // ---------------------------------------------------------------- Pipelining
+
+  /** Upload: lokale Datei -> Remote-Datei. */
+  private async transferUpload(
     task: TransferTask,
-    openRead: () => Readable,
-    openWrite: (path: string) => Writable,
+    localPath: string,
+    remotePath: string,
+    total: number,
   ): Promise<void> {
     const { signal } = task.abort;
-    const path = task.info.direction === 'upload' ? task.info.remotePath : task.info.localPath;
-    const reader = openRead();
-    const writer = openWrite(path);
-
-    reader.on('data', (chunk: Buffer) => {
-      task.info.transferredBytes += chunk.length;
-      task.onUpdate({ ...task.info });
-    });
-
-    // Datenfluss: Reader -> Writer. Ohne pipe() wuerde der Writer nie beendet und
-    // der Transfer hinge (Bug-Fix).
-    reader.pipe(writer);
-
-    const done = new Promise<void>((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-      reader.on('error', reject);
-    });
-
-    const abortHandler = () => {
-      reader.destroy();
-      writer.destroy();
-    };
-    if (signal) {
-      if (signal.aborted) {
-        abortHandler();
-      } else {
-        signal.addEventListener('abort', abortHandler, { once: true });
-      }
-    }
-
+    const remoteHandle = await this.openRemote(remotePath, 'w');
+    let fh: FileHandle | null = null;
     try {
-      await done;
+      fh = await open(localPath, 'r');
+      await this.pipeline(
+        (offset, length) => readLocal(fh!, offset, length),
+        async (offset, buf) => {
+          await this.uploadLimiter?.wait(buf.length);
+          await writeRemote(this.sftp, remoteHandle, offset, buf);
+        },
+        total,
+        signal,
+        (bytes) => {
+          task.info.transferredBytes = bytes;
+          task.onUpdate({ ...task.info });
+        },
+      );
     } finally {
-      if (signal) {
-        signal.removeEventListener('abort', abortHandler);
-      }
+      await fh?.close().catch(() => undefined);
+      await closeRemote(this.sftp, remoteHandle);
     }
+  }
+
+  /** Download: Remote-Datei -> lokale Datei. */
+  private async transferDownload(
+    task: TransferTask,
+    localPath: string,
+    remotePath: string,
+    total: number,
+  ): Promise<void> {
+    const { signal } = task.abort;
+    const remoteHandle = await this.openRemote(remotePath, 'r');
+    let fh: FileHandle | null = null;
+    try {
+      fh = await open(localPath, 'w');
+      await this.pipeline(
+        async (offset, length) => {
+          await this.downloadLimiter?.wait(length);
+          return readRemote(this.sftp, remoteHandle, offset, length);
+        },
+        (offset, buf) => writeLocal(fh!, offset, buf),
+        total,
+        signal,
+        (bytes) => {
+          task.info.transferredBytes = bytes;
+          task.onUpdate({ ...task.info });
+        },
+      );
+    } finally {
+      await fh?.close().catch(() => undefined);
+      await closeRemote(this.sftp, remoteHandle);
+    }
+  }
+
+  /**
+   * Fuehrt viele Chunk-Read/Write-Operationen parallel aus (Pipelining), damit bei guter
+   * Bandbreite und geringer Latenz die Geschwindigkeit nicht auf "Chunkgroesse / Latenz"
+   * begrenzt ist. Alle Zugriffe nutzen absolute Offsets -> Reihenfolge ist egal.
+   */
+  private async pipeline(
+    read: (offset: number, length: number) => Promise<Buffer | null>,
+    write: (offset: number, buf: Buffer) => Promise<void>,
+    totalBytes: number,
+    signal: AbortSignal,
+    onProgress: (bytes: number) => void,
+  ): Promise<void> {
+    const chunkSize = PIPELINE_CHUNK;
+    const concurrency = Math.max(1, Math.min(this.pipelineConcurrency, 256));
+    const hasKnownTotal = totalBytes > 0;
+    const nChunks = hasKnownTotal ? Math.ceil(totalBytes / chunkSize) : Number.POSITIVE_INFINITY;
+    let nextIndex = 0;
+    let transferred = 0;
+    let firstError: Error | null = null;
+
+    const worker = async () => {
+      while (!signal.aborted && firstError === null && nextIndex < nChunks) {
+        const index = nextIndex++;
+        const offset = index * chunkSize;
+        const length = hasKnownTotal ? Math.min(chunkSize, totalBytes - offset) : chunkSize;
+        try {
+          const buf = await read(offset, length);
+          if (buf === null || buf.length === 0) {
+            // EOF (bei unbekannter Groesse) bzw. keine Daten an dieser Position.
+            if (!hasKnownTotal) {
+              break;
+            }
+            continue;
+          }
+          await write(offset, buf);
+          transferred += buf.length;
+          onProgress(transferred);
+        } catch (e) {
+          firstError = e as Error;
+          break;
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    if (firstError) {
+      throw firstError;
+    }
+  }
+
+  // ---------------------------------------------------------------- Handles
+
+  private openRemote(path: string, flags: 'r' | 'w'): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      if (flags === 'w') {
+        this.sftp.open(path, 'w', 0o666, (err: Error | undefined, handle: Buffer) =>
+          err ? reject(err) : resolve(handle),
+        );
+      } else {
+        this.sftp.open(path, 'r', (err: Error | undefined, handle: Buffer) =>
+          err ? reject(err) : resolve(handle),
+        );
+      }
+    });
   }
 
   private async totalBytes(
@@ -209,4 +300,57 @@ export class TransferManager {
     task.onUpdate({ ...task.info });
     this.infoById.delete(task.info.id);
   }
+}
+
+/** Liest `length` Bytes ab `offset` aus einer lokalen Datei (EOF -> kuerzer/null). */
+async function readLocal(fh: FileHandle, offset: number, length: number): Promise<Buffer | null> {
+  const buf = Buffer.allocUnsafe(length);
+  const { bytesRead } = await fh.read(buf, 0, length, offset);
+  return bytesRead > 0 ? buf.subarray(0, bytesRead) : null;
+}
+
+/** Schreibt `buf` an `offset` in die lokale Datei. */
+async function writeLocal(fh: FileHandle, offset: number, buf: Buffer): Promise<void> {
+  const { bytesWritten } = await fh.write(buf, 0, buf.length, offset);
+  if (bytesWritten !== buf.length) {
+    throw new Error('Kurzer lokaler Schreibvorgang');
+  }
+}
+
+/** Liest `length` Bytes ab `offset` von der Remote-Datei (EOF -> null). */
+function readRemote(
+  sftp: SFTPWrapper,
+  handle: Buffer,
+  offset: number,
+  length: number,
+): Promise<Buffer | null> {
+  return new Promise((resolve, reject) => {
+    const buf = Buffer.allocUnsafe(length);
+    sftp.read(handle, buf, 0, length, offset, (err, bytesRead) => {
+      if (err) {
+        // SSH_FX_EOF (1) => normales Ende der Datei.
+        const code = (err as Error & { code?: number | string }).code;
+        if (code === 1 || code === 'EOF') {
+          return resolve(null);
+        }
+        return reject(err);
+      }
+      const n = bytesRead || 0;
+      return resolve(n > 0 ? buf.subarray(0, n) : null);
+    });
+  });
+}
+
+/** Schreibt `buf` an `offset` auf der Remote-Datei. */
+function writeRemote(sftp: SFTPWrapper, handle: Buffer, offset: number, buf: Buffer): Promise<void> {
+  return new Promise((resolve, reject) => {
+    sftp.write(handle, buf, 0, buf.length, offset, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+/** Schliesst die Remote-Datei-Handle. */
+function closeRemote(sftp: SFTPWrapper, handle: Buffer): Promise<void> {
+  return new Promise((resolve) => {
+    sftp.close(handle, () => resolve());
+  });
 }
