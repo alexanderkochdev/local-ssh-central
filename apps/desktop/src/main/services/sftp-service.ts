@@ -5,7 +5,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import log from 'electron-log';
 import type { Client, SFTPWrapper } from 'ssh2';
 import { ConnectionManager, type HostConnectionConfig } from '@ssh-central/ssh-core';
-import { SftpEngine, TransferManager } from '@ssh-central/sftp';
+import { SftpEngine, TransferManager, RateLimiter } from '@ssh-central/sftp';
 import type { FsListResponse, SftpEvent, TransferInfo } from '@ssh-central/ipc-contracts';
 import { openWith } from './openers.js';
 
@@ -13,6 +13,8 @@ export type SftpEventSink = (event: SftpEvent) => void;
 
 interface ManagedSftp {
   client: Client;
+  /** Schluessel der zugrundeliegenden Verbindung im ConnectionManager (fuer release). */
+  connectionKey: string;
   engine: SftpEngine;
   transfers: TransferManager;
 }
@@ -33,6 +35,9 @@ export class SftpService {
   private readonly connections = new ConnectionManager();
   private readonly handles = new Map<string, ManagedSftp>();
   private concurrency = 3;
+  /** Geteilte Rate-Limiter je Richtung: Obergrenze gilt gesamt fuers ganze SFTP-Subsystem. */
+  private readonly uploadLimiter = new RateLimiter(0);
+  private readonly downloadLimiter = new RateLimiter(0);
 
   /** Gelöschte Remote-Dateien (Temp->Remote) für Auto-Rückupload beim Speichern. */
   private readonly editSessions = new Map<string, EditSession>();
@@ -40,6 +45,12 @@ export class SftpService {
   /** Setzt die maximale Anzahl paralleler Transfers für NEUE SFTP-Sessions. */
   setConcurrency(n: number): void {
     this.concurrency = n;
+  }
+
+  /** Setzt Gesamt-Bandbreiten-Obergrenzen in MB/s (0 = unbegrenzt). */
+  setBandwidth(maxUploadMbps: number, maxDownloadMbps: number): void {
+    this.uploadLimiter.setBytesPerSecond(mbToBytesPerSec(maxUploadMbps));
+    this.downloadLimiter.setBytesPerSecond(mbToBytesPerSec(maxDownloadMbps));
   }
 
   constructor(
@@ -50,27 +61,35 @@ export class SftpService {
 
   async open(hostId: string): Promise<{ handle: string; cwd: string }> {
     const config = await this.getConfig(hostId);
-    const client = await this.connections.acquire(`sftp:${hostId}`, config);
-    const sftp = await new Promise<SFTPWrapper>((resolve, reject) => {
-      client.sftp((err, handle) => (err ? reject(err) : resolve(handle)));
-    });
-
-    // TOFU: Host-Key-Fingerprint nach erfolgreichem Connect persistieren (erstes Mal).
-    const fingerprint = this.connections.getFingerprint(`sftp:${hostId}`);
-    if (fingerprint) {
-      await this.persistFingerprint(hostId, fingerprint);
+    const connectionKey = `sftp:${hostId}`;
+    const client = await this.connections.acquire(connectionKey, config);
+    let sftp: SFTPWrapper;
+    try {
+      sftp = await new Promise<SFTPWrapper>((resolve, reject) => {
+        client.sftp((err, handle) => (err ? reject(err) : resolve(handle)));
+      });
+    } catch (err) {
+      // SFTP-Subsystem nicht verfuegbar: Referenz freigeben, sonst bleibt die Verbindung
+      // fuer immer offen (refcount-Leak).
+      this.connections.release(connectionKey);
+      throw err;
     }
 
     // Startverzeichnis: Home des angemeldeten Users (viele Server erlauben kein "/"-Listing).
     // Fallback "/", wenn realpath fehlschlägt - darf das Öffnen nicht blockieren.
-    const cwd = await new Promise<string>((resolve) => {
-      sftp.realpath('.', (err, path) => resolve(err || !path ? '/' : path));
-    });
+    // Parallel zum TOFU-Persist, damit der Datei-Schreibvorgang das Oeffnen nicht verzoegert.
+    const fingerprint = this.connections.getFingerprint(connectionKey);
+    const [cwd] = await Promise.all([
+      new Promise<string>((resolve) => {
+        sftp.realpath('.', (err, path) => resolve(err || !path ? '/' : path));
+      }),
+      fingerprint ? this.persistFingerprint(hostId, fingerprint) : Promise.resolve(),
+    ]);
 
     const handle = randomUUID();
     const engine = new SftpEngine(sftp);
-    const transfers = new TransferManager(sftp, this.concurrency);
-    this.handles.set(handle, { client, engine, transfers });
+    const transfers = new TransferManager(sftp, this.concurrency, 32, this.uploadLimiter, this.downloadLimiter);
+    this.handles.set(handle, { client, connectionKey, engine, transfers });
     return { handle, cwd };
   }
 
@@ -115,6 +134,15 @@ export class SftpService {
     }
   }
 
+  /**
+   * Meldet vorab die Gesamtzahl und Gesamtgroesse der Dateien eines Batches an alle Fenster,
+   * damit die aggregierte Fortschritts-Anzeige "fertig / gesamt" und die Bytes korrekt zeigen
+   * kann, bevor die einzelnen Transfers (mit Luecken) eintreffen.
+   */
+  setBatchTotal(total: number, totalBytes: number): void {
+    this.emit({ type: 'transferBatchTotal', total, totalBytes });
+  }
+
   /** Schließt eine einzelne SFTP-Session (z.B. wenn das SFTP-Fenster geschlossen wird). */
   close(handle: string): void {
     this.stopEditSessions(handle);
@@ -123,19 +151,30 @@ export class SftpService {
       return;
     }
     managed.transfers.cancelAll();
-    managed.client.end();
     this.handles.delete(handle);
+    // Referenz freigeben statt den Client hart zu beenden: bei zwei SFTP-Fenstern zum
+    // gleichen Host teilen sich beide eine Verbindung (Multiplexing) - ein `client.end()`
+    // hier haette auch die andere Session gekappt. release() beendet sie erst, wenn
+    // niemand mehr sie nutzt.
+    this.connections.release(managed.connectionKey);
   }
 
   /** Lädt eine Remote-Datei in einen Temp-Ordner, öffnet sie und lädt bei Speicherung zurück. */
-  async openRemoteFile(handle: string, remotePath: string, openerId: string): Promise<void> {    const managed = this.require(handle);
+  async openRemoteFile(handle: string, remotePath: string, openerId: string): Promise<void> {
+    const managed = this.require(handle);
     const tempDir = app.getPath('temp');
     const name = path.basename(remotePath);
     const tempPath = path.join(tempDir, `sshcentral-${randomUUID()}-${name}`);
     await managed.engine.fastGet(remotePath, tempPath);
 
     // Temp-Datei überwachen -> bei Speicherung automatisch auf den Server zurückladen.
-    const session: EditSession = { remotePath, handle, timer: null, suppress: false, watcher: null };
+    const session: EditSession = {
+      remotePath,
+      handle,
+      timer: null,
+      suppress: false,
+      watcher: null,
+    };
     this.editSessions.set(tempPath, session);
     try {
       session.watcher = watch(tempPath, () => {
@@ -224,4 +263,9 @@ export class SftpService {
     }
     return managed;
   }
+}
+
+/** MB/s (dezimal, wie von der Setting dokumentiert) -> Bytes/Sekunde (1024er). */
+function mbToBytesPerSec(mbps: number): number {
+  return Math.max(0, mbps) * 1024 * 1024;
 }

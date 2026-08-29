@@ -1,22 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
-import { IpcChannels } from '@ssh-central/ipc-contracts';
-import type { SftpEvent, TransferInfo } from '@ssh-central/ipc-contracts';
 import { FilePane, parentLocalPath, parentPath, type PaneEntry } from './FilePane.js';
 import { ContextMenu } from './ContextMenu.js';
 import { TextPromptDialog } from './TextPromptDialog.js';
 import { PropertiesDialog } from './PropertiesDialog.js';
 import { OpenWithDialog } from './OpenWithDialog.js';
 import { ConnectView } from './ConnectView.js';
-import { TransferList } from './TransferList.js';
+import { SelectionActions } from './SelectionActions.js';
 import { DebugLog, useDebugLog } from '../../components/DebugLog.js';
 import { useSftpActions, type Side } from './useSftpActions.js';
 import { buildContextMenuItems } from './contextMenuItems.js';
-import { emptyPane, upsertTransfer, type MenuState, type PaneState } from './types.js';
+import { emptyPane, type MenuState, type PaneState } from './types.js';
 import { useHostsStore } from '../../store/hosts-store.js';
 import { useSettingsStore } from '../../store/settings-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -39,7 +36,6 @@ export function SftpView({ initialHostId }: SftpViewProps) {
   const handleRef = useRef<string | null>(null);
   const [local, setLocal] = useState<PaneState>(emptyPane(''));
   const [remote, setRemote] = useState<PaneState>(emptyPane('/'));
-  const [transfers, setTransfers] = useState<TransferInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -71,26 +67,26 @@ export function SftpView({ initialHostId }: SftpViewProps) {
     };
   }, []);
 
-  useEffect(() => {
-    const off = window.api.onEvent(IpcChannels.sftpEvent, (payload) => {
-      const event = payload as SftpEvent;
-      if (event.type === 'transferProgress') {
-        setTransfers((current) => upsertTransfer(current, event.transfer));
-      }
-    });
-    return off;
-  }, []);
-
   async function refreshLocal(path: string) {
     add(`Lade lokal: ${path || '(Laufwerke)'}`);
     const cached = localCache.current.get(path);
-    setLocal((s) => ({ ...s, path, entries: cached ?? s.entries, loading: !cached, selected: new Set() }));
+    setLocal((s) => ({
+      ...s,
+      path,
+      entries: cached ?? s.entries,
+      loading: !cached,
+      selected: new Set(),
+    }));
     try {
-      const entries = !path
-        ? await window.api.fs.listDrives()
-        : (await window.api.fs.listLocal({ path })).entries;
+      const entries = !path ? await window.api.fs.listDrives() : (await window.api.fs.listLocal({ path })).entries;
       localCache.current.set(path, entries);
-      setLocal((s) => ({ ...s, path, entries, loading: false, selected: new Set() }));
+      setLocal((s) => ({
+        ...s,
+        path,
+        entries,
+        loading: false,
+        selected: new Set(),
+      }));
     } catch (e) {
       setError((e as Error).message);
       add(`Fehler (lokal): ${(e as Error).message}`);
@@ -105,11 +101,23 @@ export function SftpView({ initialHostId }: SftpViewProps) {
     }
     add(`Lade remote: ${path}`);
     const cached = remoteCache.current.get(path);
-    setRemote((s) => ({ ...s, path, entries: cached ?? s.entries, loading: !cached, selected: new Set() }));
+    setRemote((s) => ({
+      ...s,
+      path,
+      entries: cached ?? s.entries,
+      loading: !cached,
+      selected: new Set(),
+    }));
     try {
       const res = await window.api.sftp.list({ handle: h, path });
       remoteCache.current.set(path, res.entries);
-      setRemote((s) => ({ ...s, path: res.path, entries: res.entries, loading: false, selected: new Set() }));
+      setRemote((s) => ({
+        ...s,
+        path: res.path,
+        entries: res.entries,
+        loading: false,
+        selected: new Set(),
+      }));
     } catch (e) {
       setError((e as Error).message);
       add(`Fehler (remote): ${(e as Error).message}`);
@@ -132,8 +140,9 @@ export function SftpView({ initialHostId }: SftpViewProps) {
       handleRef.current = h;
       setLocal(emptyPane(''));
       setRemote(emptyPane(cwd || '/'));
-      await refreshLocal('');
-      await refreshRemote(cwd || '/');
+      // Beide Seiten parallel laden: das Auflisten der Laufwerke (Windows-Volume-Namen)
+      // und das Remote-Listing haben nichts miteinander zu tun.
+      await Promise.all([refreshLocal(''), refreshRemote(cwd || '/')]);
       add('SFTP verbunden.');
     } catch (e) {
       add(`Fehler: ${(e as Error).message}`);
@@ -150,6 +159,7 @@ export function SftpView({ initialHostId }: SftpViewProps) {
     handleRef,
     hosts,
     hostId,
+    user,
     vault,
     setVault,
     refreshLocal,
@@ -180,7 +190,10 @@ export function SftpView({ initialHostId }: SftpViewProps) {
   }
 
   function selectAll(side: Side) {
-    const setter = (s: PaneState): PaneState => ({ ...s, selected: new Set(s.entries.map((e) => e.path)) });
+    const setter = (s: PaneState): PaneState => ({
+      ...s,
+      selected: new Set(s.entries.map((e) => e.path)),
+    });
     if (side === 'local') {
       setLocal(setter);
     } else {
@@ -206,6 +219,7 @@ export function SftpView({ initialHostId }: SftpViewProps) {
       return;
     }
     try {
+      await actions.announceBatch('local', selectedEntries('local'));
       for (const entry of selectedEntries('local')) {
         await actions.uploadInto(entry, remote.path);
       }
@@ -221,6 +235,7 @@ export function SftpView({ initialHostId }: SftpViewProps) {
       return;
     }
     try {
+      await actions.announceBatch('remote', selectedEntries('remote'));
       for (const entry of selectedEntries('remote')) {
         await actions.downloadInto(entry, local.path);
       }
@@ -281,11 +296,25 @@ export function SftpView({ initialHostId }: SftpViewProps) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {(local.loading || remote.loading) && user.showDebugLog && <DebugLog entries={entries} />}
-      <Box sx={{ display: 'flex', gap: 1, p: 1, borderBottom: 1, borderColor: 'divider', alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 1,
+          p: 1,
+          borderBottom: 1,
+          borderColor: 'divider',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
         <Typography variant="body2" color="success.main">
           {t('sftp.connected')}
         </Typography>
-        {error && <Alert severity="error" sx={{ flexGrow: 1 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ flexGrow: 1 }}>
+            {error}
+          </Alert>
+        )}
       </Box>
 
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -300,20 +329,14 @@ export function SftpView({ initialHostId }: SftpViewProps) {
             onSelectAll={() => selectAll('local')}
             onClearSelection={() => clearSelection('local')}
             selectionActions={
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button size="small" variant="contained" onClick={() => void bulkUpload()}>
-                  {t('sftp.upload')}
-                </Button>
-                <Button size="small" variant="contained" color="error" onClick={() => bulkDelete('local')}>
-                  {t('action.delete')}
-                </Button>
-                <Button size="small" onClick={() => copySelection('local', 'copy')}>
-                  {t('sftp.copy')}
-                </Button>
-                <Button size="small" onClick={() => copySelection('local', 'cut')}>
-                  {t('sftp.cut')}
-                </Button>
-              </Box>
+              <SelectionActions
+                side="local"
+                t={t}
+                onTransfer={() => void bulkUpload()}
+                onCopy={() => copySelection('local', 'copy')}
+                onCut={() => copySelection('local', 'cut')}
+                onDelete={() => bulkDelete('local')}
+              />
             }
             onUp={() => void refreshLocal(parentLocalPath(local.path))}
             onNavigatePath={(p) => void refreshLocal(p)}
@@ -321,7 +344,8 @@ export function SftpView({ initialHostId }: SftpViewProps) {
             onItemContextMenu={(entry, x, y) => setMenu({ side: 'local', entry, x, y })}
             onPaneContextMenu={(x, y) => setMenu({ side: 'local', entry: null, x, y })}
             onOpenFile={(entry) => actions.openFile('local', entry)}
-            onFileDragStart={(entry, e) => actions.handleDragStart('local', entry, e)}
+            onFileDragStart={(dragged, e) => actions.handleDragStart('local', dragged, e)}
+            onFileDragEnd={actions.handleDragEnd}
             onPaneDrop={(e) => actions.handlePaneDrop(e, 'local')}
           />
         </Box>
@@ -337,20 +361,15 @@ export function SftpView({ initialHostId }: SftpViewProps) {
             onSelectAll={() => selectAll('remote')}
             onClearSelection={() => clearSelection('remote')}
             selectionActions={
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button size="small" variant="contained" onClick={() => void bulkDownload()}>
-                  {t('sftp.download')}
-                </Button>
-                <Button size="small" variant="contained" color="error" onClick={() => bulkDelete('remote')}>
-                  {t('action.delete')}
-                </Button>
-                <Button size="small" onClick={() => copySelection('remote', 'copy')}>
-                  {t('sftp.copy')}
-                </Button>
-                <Button size="small" onClick={() => copySelection('remote', 'cut')}>
-                  {t('sftp.cut')}
-                </Button>
-              </Box>
+              <SelectionActions
+                side="remote"
+                t={t}
+                onTransfer={() => void bulkDownload()}
+                onDownloadAs={() => void actions.downloadAs(selectedEntries('remote'))}
+                onCopy={() => copySelection('remote', 'copy')}
+                onCut={() => copySelection('remote', 'cut')}
+                onDelete={() => bulkDelete('remote')}
+              />
             }
             onUp={() => void refreshRemote(parentPath(remote.path))}
             onNavigatePath={(p) => void refreshRemote(p)}
@@ -358,13 +377,12 @@ export function SftpView({ initialHostId }: SftpViewProps) {
             onItemContextMenu={(entry, x, y) => setMenu({ side: 'remote', entry, x, y })}
             onPaneContextMenu={(x, y) => setMenu({ side: 'remote', entry: null, x, y })}
             onOpenFile={(entry) => actions.openFile('remote', entry)}
-            onFileDragStart={(entry, e) => actions.handleDragStart('remote', entry, e)}
+            onFileDragStart={(dragged, e) => actions.handleDragStart('remote', dragged, e)}
+            onFileDragEnd={actions.handleDragEnd}
             onPaneDrop={(e) => actions.handlePaneDrop(e, 'remote')}
           />
         </Box>
       </Box>
-
-      {transfers.length > 0 && <TransferList transfers={transfers} t={t} />}
 
       <ContextMenu
         open={Boolean(menu)}
@@ -378,8 +396,7 @@ export function SftpView({ initialHostId }: SftpViewProps) {
                 entry: menu.entry,
                 hasClipboard: Boolean(actions.clipboard),
                 actions,
-                refresh: () =>
-                  menu.side === 'local' ? refreshLocal(local.path) : refreshRemote(remote.path),
+                refresh: () => (menu.side === 'local' ? refreshLocal(local.path) : refreshRemote(remote.path)),
                 onProperties: (entry) => setPropsEntry(entry),
               })
             : []

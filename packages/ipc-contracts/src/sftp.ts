@@ -50,9 +50,18 @@ export interface CancelTransferRequest {
   id: string;
 }
 
+/** Der SFTP-Fenster meldet vorab, wie viele Dateien (und wie viele Bytes) im Batch anfallen. */
+export interface SftpBatchTotalRequest {
+  /** Anzahl der Dateien des kommenden Batches (rekursiv gezählt). */
+  total: number;
+  /** Gesamtgröße aller Dateien des Batches in Bytes (0 = unbekannt). */
+  totalBytes?: number;
+}
+
 export type SftpEvent =
   | { type: 'transferQueued'; transfer: TransferInfo }
   | { type: 'transferProgress'; transfer: TransferInfo }
   | { type: 'transferDone'; transfer: TransferInfo }
   | { type: 'transferError'; transfer: TransferInfo }
+  | { type: 'transferBatchTotal'; total: number; totalBytes: number }
   | { type: 'directoryChanged'; handle: string; path: string };

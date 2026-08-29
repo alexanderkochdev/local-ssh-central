@@ -3,11 +3,13 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
+import Tooltip from '@mui/material/Tooltip';
 import CloseIcon from '@mui/icons-material/Close';
+import StopIcon from '@mui/icons-material/Stop';
 import { useAppDispatch, useAppSelector } from '../store/index.js';
-import { removeNotification } from '../store/notificationsSlice.js';
+import { cancelSftpTransfers, removeNotification } from '../store/notificationsSlice.js';
 
-/** Stapel von Notifications unten rechts im Hauptfenster. */
+/** Stapel von Notifications unten rechts (im Haupt- bzw. SFTP-Fenster). */
 export function NotificationsContainer() {
   const items = useAppSelector((s) => s.notifications.items);
   const dispatch = useAppDispatch();
@@ -41,7 +43,14 @@ export function NotificationsContainer() {
             <Typography variant="body2" sx={{ flex: 1, fontWeight: 600 }}>
               {n.title}
             </Typography>
-            <IconButton size="small" onClick={() => dispatch(removeNotification(n.id))}>
+            {n.cancelable && (
+              <Tooltip title="Abbrechen" arrow>
+                <IconButton size="small" onClick={() => dispatch(cancelSftpTransfers())}>
+                  <StopIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            <IconButton size="small" disabled={n.cancelable} onClick={() => dispatch(removeNotification(n.id))}>
               <CloseIcon fontSize="small" />
             </IconButton>
           </Box>

@@ -29,17 +29,12 @@ import type {
   CancelTransferRequest,
   FsListRequest,
   FsListResponse,
+  SftpBatchTotalRequest,
   SftpEvent,
   TransferInfo,
   TransferRequest,
 } from './sftp.js';
-import type {
-  ListLocalRequest,
-  ListLocalResponse,
-  LocalFileEntry,
-  MkdirLocalRequest,
-  OpenerInfo,
-} from './fs.js';
+import type { ListLocalRequest, ListLocalResponse, LocalFileEntry, MkdirLocalRequest, OpenerInfo } from './fs.js';
 import type {
   PluginDialogRequest,
   PluginIpcInvokeRequest,
@@ -123,6 +118,8 @@ export interface SshCentralApi {
     upload(request: TransferRequest): Promise<TransferInfo>;
     download(request: TransferRequest): Promise<TransferInfo>;
     cancel(request: CancelTransferRequest): Promise<void>;
+    /** Meldet vorab, wie viele Dateien im kommenden Batch hoch-/heruntergeladen werden. */
+    setBatchTotal(request: SftpBatchTotalRequest): Promise<void>;
   };
   fs: {
     home(): Promise<string>;
@@ -136,6 +133,12 @@ export interface SshCentralApi {
     openWith(request: { path: string; openerId: string }): Promise<void>;
     createFileLocal(path: string): Promise<void>;
     openInVscode(request: { folder?: string; remote?: { user?: string; host: string; path: string } }): Promise<void>;
+    /**
+     * Absoluter Pfad einer aus dem Betriebssystem (Explorer/Finder) per Drag&Drop
+     * uebergebenen Datei. Electron entfernt `File.path` ab v32; der Preload loest den
+     * Pfad ueber `webUtils.getPathForFile` auf. Synchron, da im Drop-Handler benoetigt.
+     */
+    pathForFile(file: File): string;
   };
   /**
    * Schema-getriebene Einstellungen. Zwei getrennte Provider:
@@ -158,6 +161,11 @@ export interface SshCentralApi {
   dialog: {
     pickFolder(): Promise<string | null>;
     pickFile(): Promise<string | null>;
+    /**
+     * Speicherziel fuer einen einzelnen Download waehlen ("Herunterladen zu ..."). Liefert
+     * den vollen Zielpfad oder null bei Abbruch.
+     */
+    saveFile(request: { suggestedName?: string }): Promise<string | null>;
   };
   /** System-Ressourcen-Statistiken (CPU, RAM, GPU, Speicher) fuer die Statusleiste. */
   system: {

@@ -1,7 +1,8 @@
 import { useState, type MutableRefObject, type DragEvent } from 'react';
-import type { Host, VaultSettingsValues } from '@ssh-central/ipc-contracts';
+import type { Host, UserSettingsValues, VaultSettingsValues } from '@ssh-central/ipc-contracts';
 import { joinPath, parentLocalPath, parentPath, type PaneEntry } from './FilePane.js';
 import { getExt } from './OpenWithDialog.js';
+import { clearDragPayload, readDragPayload, readDroppedOsPaths, setDragPayload } from './drag-payload.js';
 
 export type Side = 'local' | 'remote';
 
@@ -25,6 +26,7 @@ interface UseSftpActionsOptions {
   handleRef: MutableRefObject<string | null>;
   hosts: Host[];
   hostId: string;
+  user: UserSettingsValues;
   vault: VaultSettingsValues;
   setVault: (patch: Partial<VaultSettingsValues>) => void;
   refreshLocal: (path: string) => Promise<void>;
@@ -45,6 +47,7 @@ export function useSftpActions({
   handleRef,
   hosts,
   hostId,
+  user,
   vault,
   setVault,
   refreshLocal,
@@ -55,9 +58,18 @@ export function useSftpActions({
   t,
 }: UseSftpActionsOptions) {
   const [clipboard, setClipboard] = useState<ClipboardState | null>(null);
-  const [renameTarget, setRenameTarget] = useState<{ side: Side; entry: PaneEntry } | null>(null);
-  const [createTarget, setCreateTarget] = useState<{ side: Side; type: 'file' | 'folder' } | null>(null);
-  const [openFileTarget, setOpenFileTarget] = useState<{ side: Side; entry: PaneEntry } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{
+    side: Side;
+    entry: PaneEntry;
+  } | null>(null);
+  const [createTarget, setCreateTarget] = useState<{
+    side: Side;
+    type: 'file' | 'folder';
+  } | null>(null);
+  const [openFileTarget, setOpenFileTarget] = useState<{
+    side: Side;
+    entry: PaneEntry;
+  } | null>(null);
 
   function openEntry(side: Side, entry: PaneEntry) {
     if (entry.isDirectory) {
@@ -68,6 +80,65 @@ export function useSftpActions({
       }
     } else if (side === 'local') {
       void window.api.fs.openPath(entry.path);
+    }
+  }
+
+  /** Zaehlt rekursiv Dateien und summiert deren Groesse (Upload-Quelle, lokal). */
+  async function scanUploadStats(entries: PaneEntry[]): Promise<{ count: number; bytes: number }> {
+    let count = 0;
+    let bytes = 0;
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        const sub = await window.api.fs.listLocal({ path: entry.path });
+        const inner = await scanUploadStats(sub.entries);
+        count += inner.count;
+        bytes += inner.bytes;
+      } else {
+        count += 1;
+        bytes += entry.size ?? 0;
+      }
+    }
+    return { count, bytes };
+  }
+
+  /** Zaehlt rekursiv Dateien und summiert deren Groesse (Download-Quelle, remote). */
+  async function scanDownloadStats(entries: PaneEntry[]): Promise<{ count: number; bytes: number }> {
+    let count = 0;
+    let bytes = 0;
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        const h = handleRef.current;
+        if (!h) {
+          continue;
+        }
+        const sub = await window.api.sftp.list({ handle: h, path: entry.path });
+        const mapped = sub.entries.map((e) => ({ name: e.name, path: e.path, isDirectory: e.isDirectory, size: e.size }));
+        const inner = await scanDownloadStats(mapped);
+        count += inner.count;
+        bytes += inner.bytes;
+      } else {
+        count += 1;
+        bytes += entry.size ?? 0;
+      }
+    }
+    return { count, bytes };
+  }
+
+  /**
+   * Scannt Anzahl + Gesamtgroesse der Dateien eines Batch vorab ein und meldet sie via IPC an
+   * alle Fenster, damit der aggregierte Fortschritts-Toast "fertig / gesamt" und die Bytes
+   * korrekt anzeigen kann (sonst wuerde der Zaehler "1/1, 2/2 ..." laufen und die Groesse nur
+   * die bisher bekannten Dateien umfassen). Fehler werden bewusst geschluckt - dann bleibt
+   * die Gesamtzahl/-groesse unbekannt (Fallback auf bekannte Transfers).
+   */
+  async function announceBatch(side: Side, entries: PaneEntry[]): Promise<void> {
+    try {
+      const stats = side === 'local' ? await scanUploadStats(entries) : await scanDownloadStats(entries);
+      if (stats.count > 0) {
+        await window.api.sftp.setBatchTotal({ total: stats.count, totalBytes: stats.bytes });
+      }
+    } catch {
+      // Zaehlung fehlgeschlagen -> Gesamtzahl/-groesse bleibt unbekannt.
     }
   }
 
@@ -85,7 +156,11 @@ export function useSftpActions({
         await uploadInto(child, remotePath);
       }
     } else {
-      await window.api.sftp.upload({ handle: h, localPath: entry.path, remotePath });
+      await window.api.sftp.upload({
+        handle: h,
+        localPath: entry.path,
+        remotePath,
+      });
     }
   }
 
@@ -93,6 +168,7 @@ export function useSftpActions({
     if (!handleRef.current) {
       return;
     }
+    await announceBatch('local', [entry]);
     try {
       await uploadInto(entry, remote.path);
       remoteCache.current.delete(remote.path);
@@ -112,7 +188,11 @@ export function useSftpActions({
         await downloadInto(child, localPath);
       }
     } else {
-      await window.api.sftp.download({ handle: h, remotePath: entry.path, localPath });
+      await window.api.sftp.download({
+        handle: h,
+        remotePath: entry.path,
+        localPath,
+      });
     }
   }
 
@@ -120,6 +200,7 @@ export function useSftpActions({
     if (!handleRef.current) {
       return;
     }
+    await announceBatch('remote', [entry]);
     try {
       await downloadInto(entry, local.path);
       localCache.current.delete(local.path);
@@ -161,7 +242,10 @@ export function useSftpActions({
   async function doDelete(side: Side, entry: PaneEntry): Promise<void> {
     try {
       if (side === 'local') {
-        await window.api.fs.deleteLocal({ path: entry.path, isDirectory: entry.isDirectory });
+        await window.api.fs.deleteLocal({
+          path: entry.path,
+          isDirectory: entry.isDirectory,
+        });
         localCache.current.delete(parentLocalPath(entry.path));
         await refreshLocal(local.path);
       } else {
@@ -182,11 +266,16 @@ export function useSftpActions({
     try {
       if (type === 'folder') {
         if (side === 'local') {
-          await window.api.fs.mkdirLocal({ path: joinLocalPath(local.path, name) });
+          await window.api.fs.mkdirLocal({
+            path: joinLocalPath(local.path, name),
+          });
           localCache.current.delete(local.path);
           await refreshLocal(local.path);
         } else {
-          await window.api.sftp.mkdir({ handle: handleRef.current!, path: joinPath(remote.path, name) });
+          await window.api.sftp.mkdir({
+            handle: handleRef.current!,
+            path: joinPath(remote.path, name),
+          });
           remoteCache.current.delete(remote.path);
           await refreshRemote(remote.path);
         }
@@ -196,7 +285,10 @@ export function useSftpActions({
           localCache.current.delete(local.path);
           await refreshLocal(local.path);
         } else {
-          await window.api.sftp.createFile({ handle: handleRef.current!, path: joinPath(remote.path, name) });
+          await window.api.sftp.createFile({
+            handle: handleRef.current!,
+            path: joinPath(remote.path, name),
+          });
           remoteCache.current.delete(remote.path);
           await refreshRemote(remote.path);
         }
@@ -218,7 +310,9 @@ export function useSftpActions({
         return;
       }
       void window.api.fs
-        .openInVscode({ remote: { user: host.username, host: host.host, path: folderPath } })
+        .openInVscode({
+          remote: { user: host.username, host: host.host, path: folderPath },
+        })
         .catch((e) => setError((e as Error).message));
     }
   }
@@ -230,7 +324,7 @@ export function useSftpActions({
       void performOpen(side, entry, preferred);
       return;
     }
-    const def = vault.defaultOpener;
+    const def = user.defaultOpener;
     if (def && def !== '__ask__') {
       void performOpen(side, entry, def);
       return;
@@ -243,7 +337,11 @@ export function useSftpActions({
       if (side === 'local') {
         await window.api.fs.openWith({ path: entry.path, openerId });
       } else if (handleRef.current) {
-        await window.api.sftp.openRemote({ handle: handleRef.current, remotePath: entry.path, openerId });
+        await window.api.sftp.openRemote({
+          handle: handleRef.current,
+          remotePath: entry.path,
+          openerId,
+        });
       }
     } catch (e) {
       setError((e as Error).message);
@@ -278,6 +376,11 @@ export function useSftpActions({
     }
     try {
       if (c.side !== side) {
+        if (c.side === 'local') {
+          await announceBatch('local', c.entries);
+        } else {
+          await announceBatch('remote', c.entries);
+        }
         for (const entry of c.entries) {
           if (c.side === 'local') {
             await uploadInto(entry, remote.path);
@@ -297,7 +400,10 @@ export function useSftpActions({
           if (side === 'local') {
             const target = joinLocalPath(local.path, entry.name);
             if (target !== entry.path) {
-              await window.api.fs.renameLocal({ oldPath: entry.path, newPath: target });
+              await window.api.fs.renameLocal({
+                oldPath: entry.path,
+                newPath: target,
+              });
             }
           } else {
             const target = joinPath(remote.path, entry.name);
@@ -320,47 +426,149 @@ export function useSftpActions({
     }
   }
 
-  function handleDragStart(side: Side, entry: PaneEntry, e: DragEvent): void {
-    const payload = JSON.stringify({
-      side,
-      name: entry.name,
-      path: entry.path,
-      isDirectory: entry.isDirectory,
-    });
-    // Chromium/Electron verwirft Custom-MIME-Typen im dataTransfer auf Windows teils zuverlässig
-    // NICHT - deshalb zusätzlich den Standard-Typ 'text/plain' als Träger setzen, damit der
-    // Drop-Handler die Daten garantiert liest.
-    e.dataTransfer.setData('application/x-sshcentral', payload);
-    e.dataTransfer.setData('text/plain', payload);
-    e.dataTransfer.effectAllowed = 'copy';
+  function handleDragStart(side: Side, entries: PaneEntry[], e: DragEvent): void {
+    if (entries.length === 0) {
+      return;
+    }
+    setDragPayload(e, { side, entries });
   }
 
+  function handleDragEnd(): void {
+    clearDragPayload();
+  }
+
+  /**
+   * Drop auf ein Pane. Quelle ist entweder das andere Pane (Payload) oder das
+   * Betriebssystem (Datei-Drop aus dem Explorer). Fehler landen sichtbar in `setError` -
+   * ein still verschluckter Rejection sah bisher wie "Drag&Drop tut nichts" aus.
+   */
   function handlePaneDrop(e: DragEvent, targetSide: Side): void {
-    const raw =
-      e.dataTransfer.getData('application/x-sshcentral') || e.dataTransfer.getData('text/plain');
-    if (!raw) {
+    const osPaths = readDroppedOsPaths(e);
+    if (osPaths.length > 0) {
+      clearDragPayload();
+      void dropOsFiles(osPaths, targetSide);
+      return;
+    }
+
+    const payload = readDragPayload(e);
+    clearDragPayload();
+    if (!payload || payload.side === targetSide) {
+      return;
+    }
+    void transfer(payload.side, payload.entries, targetSide);
+  }
+
+  /** Uebertraegt gezogene Eintraege in das Ziel-Pane (mit sichtbarer Fehlermeldung). */
+  async function transfer(from: Side, entries: PaneEntry[], to: Side): Promise<void> {
+    if (!handleRef.current) {
+      setError(t('sftp.notConnected'));
+      return;
+    }
+    if (to === 'local' && !local.path) {
+      // Die lokale Seite zeigt die Laufwerksauswahl - dort gibt es kein Zielverzeichnis.
+      setError(t('sftp.selectDriveFirst'));
+      return;
+    }
+    if (from === 'local' && to === 'remote') {
+      await announceBatch('local', entries);
+    } else if (from === 'remote' && to === 'local') {
+      await announceBatch('remote', entries);
+    }
+    try {
+      for (const entry of entries) {
+        if (from === 'local') {
+          await uploadInto(entry, remote.path);
+        } else {
+          await downloadInto(entry, local.path);
+        }
+      }
+      if (to === 'remote') {
+        remoteCache.current.delete(remote.path);
+        await refreshRemote(remote.path);
+      } else {
+        localCache.current.delete(local.path);
+        await refreshLocal(local.path);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  /** Aus dem Betriebssystem gezogene Dateien: nur auf die Remote-Seite sinnvoll (Upload). */
+  async function dropOsFiles(paths: string[], targetSide: Side): Promise<void> {
+    if (targetSide !== 'remote') {
       return;
     }
     try {
-      const data = JSON.parse(raw) as { side: Side; name: string; path: string; isDirectory: boolean };
-      if (data.side === targetSide) {
+      const entries = await Promise.all(paths.map(toLocalEntry));
+      await transfer('local', entries, 'remote');
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  /**
+   * Baut aus einem lokalen Pfad einen Pane-Eintrag. Ob es ein Ordner ist, verraet ein
+   * Listing-Versuch (auf eine Datei antwortet der Main-Process mit einem Fehler) - so
+   * werden auch komplette Ordner aus dem Explorer korrekt rekursiv hochgeladen.
+   */
+  async function toLocalEntry(path: string): Promise<PaneEntry> {
+    let isDirectory: boolean;
+    try {
+      await window.api.fs.listLocal({ path });
+      isDirectory = true;
+    } catch {
+      isDirectory = false;
+    }
+    return { name: baseName(path), path, isDirectory };
+  }
+
+  /**
+   * "Herunterladen zu ...": Einzelne Datei -> Speichern-Dialog (Zielname frei waehlbar),
+   * mehrere Eintraege oder Ordner -> Zielverzeichnis waehlen.
+   */
+  async function downloadAs(entries: PaneEntry[]): Promise<void> {
+    if (!handleRef.current || entries.length === 0) {
+      return;
+    }
+    await announceBatch('remote', entries);
+    try {
+      const single = entries.length === 1 ? entries[0] : undefined;
+      if (single && !single.isDirectory) {
+        const target = await window.api.dialog.saveFile({
+          suggestedName: single.name,
+        });
+        if (!target) {
+          return;
+        }
+        await window.api.sftp.download({
+          handle: handleRef.current,
+          remotePath: single.path,
+          localPath: target,
+        });
+        await refreshAfterDownloadTo(parentLocalPath(target));
         return;
       }
-      const entry: PaneEntry = { name: data.name, path: data.path, isDirectory: data.isDirectory };
-      if (data.side === 'local') {
-        void uploadInto(entry, remote.path).then(() => {
-          remoteCache.current.delete(remote.path);
-          return refreshRemote(remote.path);
-        });
-      } else {
-        void downloadInto(entry, local.path).then(() => {
-          localCache.current.delete(local.path);
-          return refreshLocal(local.path);
-        });
+      const directory = await window.api.dialog.pickFolder();
+      if (!directory) {
+        return;
       }
-    } catch {
-      // ungueltige Drag-Daten ignorieren
+      for (const entry of entries) {
+        await downloadInto(entry, directory);
+      }
+      await refreshAfterDownloadTo(directory);
+    } catch (e) {
+      setError((e as Error).message);
     }
+  }
+
+  /** Aktualisiert die lokale Seite nur, wenn das Ziel gerade dort angezeigt wird. */
+  async function refreshAfterDownloadTo(directory: string): Promise<void> {
+    if (!local.path || normalizeLocal(directory) !== normalizeLocal(local.path)) {
+      return;
+    }
+    localCache.current.delete(local.path);
+    await refreshLocal(local.path);
   }
 
   return {
@@ -375,6 +583,7 @@ export function useSftpActions({
     openEntry,
     uploadEntry,
     downloadEntry,
+    downloadAs,
     uploadInto,
     downloadInto,
     doRename,
@@ -387,8 +596,25 @@ export function useSftpActions({
     copyPath,
     pasteInto,
     handleDragStart,
+    handleDragEnd,
     handlePaneDrop,
+    announceBatch,
   };
+}
+
+/** Dateiname eines lokalen Pfades (Windows- und POSIX-Trenner). */
+function baseName(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, '');
+  const index = Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/'));
+  return index < 0 ? normalized : normalized.slice(index + 1);
+}
+
+/** Vergleichbare Form eines lokalen Pfades (Trenner + Gross-/Kleinschreibung). */
+function normalizeLocal(path: string): string {
+  return path
+    .replace(/[\\/]+$/, '')
+    .replace(/\//g, '\\')
+    .toLowerCase();
 }
 
 export type SftpActions = ReturnType<typeof useSftpActions>;

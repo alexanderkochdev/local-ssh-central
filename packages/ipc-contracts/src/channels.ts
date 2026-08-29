@@ -43,9 +43,11 @@ export const IpcChannels = {
   settingsAutoLock: 'settings:autoLock',
   settingsSftpConcurrency: 'settings:sftpConcurrency',
 
-  // Native Dialoge (Ordner-/Datei-Picker fuer 'folder'/'file'-SettingDefinition)
+  // Native Dialoge (Ordner-/Datei-Picker fuer 'folder'/'file'-SettingDefinition,
+  // Speicherziel fuer "Herunterladen zu ...")
   dialogPickFolder: 'dialog:pickFolder',
   dialogPickFile: 'dialog:pickFile',
+  dialogSaveFile: 'dialog:saveFile',
 
   // System-Ressourcen (CPU, RAM, GPU, Speicher) fuer die Statusleiste
   systemGetStats: 'system:getStats',
@@ -78,6 +80,7 @@ export const IpcChannels = {
   sftpUpload: 'sftp:upload',
   sftpDownload: 'sftp:download',
   sftpCancel: 'sftp:cancel',
+  sftpSetBatchTotal: 'sftp:setBatchTotal',
   sftpEvent: 'sftp:event',
 
   // Lokales Dateisystem

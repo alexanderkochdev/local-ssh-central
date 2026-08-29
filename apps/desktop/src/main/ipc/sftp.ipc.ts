@@ -3,6 +3,7 @@ import { IpcChannels } from '@ssh-central/ipc-contracts';
 import type {
   CancelTransferRequest,
   FsListRequest,
+  SftpBatchTotalRequest,
   TransferRequest,
 } from '@ssh-central/ipc-contracts';
 import type { AppServices } from './types.js';
@@ -71,5 +72,9 @@ export function registerSftpIpc(services: AppServices): void {
 
   ipcMain.handle(IpcChannels.sftpCancel, (_event, request: CancelTransferRequest) =>
     services.sftp.cancel(request.id),
+  );
+
+  ipcMain.handle(IpcChannels.sftpSetBatchTotal, (_event, request: SftpBatchTotalRequest) =>
+    services.sftp.setBatchTotal(request.total, request.totalBytes ?? 0),
   );
 }

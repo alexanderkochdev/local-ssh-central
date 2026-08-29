@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
   IpcChannels,
   type AutoUpdateState,
@@ -22,8 +22,7 @@ const api: SshCentralApi = {
     create: (request) => ipcRenderer.invoke(IpcChannels.vaultCreate, request),
     unlock: (request) => ipcRenderer.invoke(IpcChannels.vaultUnlock, request),
     lock: () => ipcRenderer.invoke(IpcChannels.vaultLock),
-    changeMasterPassword: (request) =>
-      ipcRenderer.invoke(IpcChannels.vaultChangeMasterPassword, request),
+    changeMasterPassword: (request) => ipcRenderer.invoke(IpcChannels.vaultChangeMasterPassword, request),
     entries: {
       list: () => ipcRenderer.invoke(IpcChannels.vaultEntriesList),
       create: (request) => ipcRenderer.invoke(IpcChannels.vaultEntryCreate, request),
@@ -56,14 +55,12 @@ const api: SshCentralApi = {
     createFile: (request) => ipcRenderer.invoke(IpcChannels.sftpCreateFile, request),
     list: (request) => ipcRenderer.invoke(IpcChannels.sftpList, request),
     mkdir: (request) => ipcRenderer.invoke(IpcChannels.sftpMkdir, request),
-    rename: (handle, oldPath, newPath) =>
-      ipcRenderer.invoke(IpcChannels.sftpRename, { handle, oldPath, newPath }),
-    remove: (handle, path, isDirectory) =>
-      ipcRenderer.invoke(IpcChannels.sftpRemove, { handle, path, isDirectory }),
+    rename: (handle, oldPath, newPath) => ipcRenderer.invoke(IpcChannels.sftpRename, { handle, oldPath, newPath }),
+    remove: (handle, path, isDirectory) => ipcRenderer.invoke(IpcChannels.sftpRemove, { handle, path, isDirectory }),
     upload: (request) => ipcRenderer.invoke(IpcChannels.sftpUpload, request),
     download: (request) => ipcRenderer.invoke(IpcChannels.sftpDownload, request),
     cancel: (request) => ipcRenderer.invoke(IpcChannels.sftpCancel, request),
-  },
+    setBatchTotal: (request) => ipcRenderer.invoke(IpcChannels.sftpSetBatchTotal, request),  },
   fs: {
     home: () => ipcRenderer.invoke(IpcChannels.fsHome),
     listDrives: () => ipcRenderer.invoke(IpcChannels.fsListDrives),
@@ -76,21 +73,39 @@ const api: SshCentralApi = {
     openWith: (request) => ipcRenderer.invoke(IpcChannels.fsOpenWith, request),
     createFileLocal: (path) => ipcRenderer.invoke(IpcChannels.fsCreateFileLocal, path),
     openInVscode: (request) => ipcRenderer.invoke(IpcChannels.fsOpenInVscode, request),
+    // Drag&Drop aus dem Betriebssystem: File.path existiert ab Electron 32 nicht mehr.
+    pathForFile: (file) => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return ''; // Kein echter Datei-Drop (z.B. Text/Bild aus dem Browser).
+      }
+    },
   },
   windows: {
-    openTerminal: (hostId) => ipcRenderer.send(IpcChannels.windowOpen, { kind: 'terminal', id: hostId }),
+    openTerminal: (hostId) =>
+      ipcRenderer.send(IpcChannels.windowOpen, {
+        kind: 'terminal',
+        id: hostId,
+      }),
     openSftp: (hostId) => ipcRenderer.send(IpcChannels.windowOpen, { kind: 'sftp', id: hostId }),
     setTitle: (title) => ipcRenderer.send(IpcChannels.windowSetTitle, title),
     attachSession: (sessionId) => ipcRenderer.send(IpcChannels.windowAttachSession, sessionId),
     attachSftp: (handle) => ipcRenderer.send(IpcChannels.windowAttachSftp, handle),
   },
   settings: {
-    getUser: async () => (await ipcRenderer.invoke(IpcChannels.settingsGet) as SettingsGetResult).user,
-    getVault: async () => (await ipcRenderer.invoke(IpcChannels.settingsGet) as SettingsGetResult).vault,
+    getUser: async () => ((await ipcRenderer.invoke(IpcChannels.settingsGet)) as SettingsGetResult).user,
+    getVault: async () => ((await ipcRenderer.invoke(IpcChannels.settingsGet)) as SettingsGetResult).vault,
     setUser: async (patch) =>
-      (await ipcRenderer.invoke(IpcChannels.settingsSet, { scope: 'user', patch })) as UserSettingsValues,
+      (await ipcRenderer.invoke(IpcChannels.settingsSet, {
+        scope: 'user',
+        patch,
+      })) as UserSettingsValues,
     setVault: async (patch) =>
-      (await ipcRenderer.invoke(IpcChannels.settingsSet, { scope: 'vault', patch })) as VaultSettingsValues,
+      (await ipcRenderer.invoke(IpcChannels.settingsSet, {
+        scope: 'vault',
+        patch,
+      })) as VaultSettingsValues,
     onChanged: (handler: (payload: SettingsChangedPayload) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: SettingsChangedPayload) => handler(payload);
       ipcRenderer.on(IpcChannels.settingsChanged, listener);
@@ -102,6 +117,7 @@ const api: SshCentralApi = {
   dialog: {
     pickFolder: () => ipcRenderer.invoke(IpcChannels.dialogPickFolder),
     pickFile: () => ipcRenderer.invoke(IpcChannels.dialogPickFile),
+    saveFile: (request) => ipcRenderer.invoke(IpcChannels.dialogSaveFile, request),
   },
   system: {
     getStats: () => ipcRenderer.invoke(IpcChannels.systemGetStats),
@@ -134,8 +150,7 @@ const api: SshCentralApi = {
       return () => ipcRenderer.removeListener(IpcChannels.pluginsIpcEvent, listener);
     },
     dialog: (request) => ipcRenderer.invoke(IpcChannels.pluginsDialog, request),
-    dialogResponse: (requestId, value) =>
-      ipcRenderer.send(IpcChannels.pluginsDialogResponse, { requestId, value }),
+    dialogResponse: (requestId, value) => ipcRenderer.send(IpcChannels.pluginsDialogResponse, { requestId, value }),
     setTabFocus: (request) => ipcRenderer.send(IpcChannels.pluginsTabFocus, request),
     permissionsList: () => ipcRenderer.invoke(IpcChannels.pluginsPermissionsList),
     grantPermission: (request) => ipcRenderer.invoke(IpcChannels.pluginsPermissionGrant, request),
