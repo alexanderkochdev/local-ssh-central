@@ -1,28 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
-import type { Host, UserSettingsValues, VaultSettingsValues } from '@ssh-central/ipc-contracts';
+import {
+  USER_SETTINGS_DEFAULTS,
+  VAULT_SETTINGS_DEFAULTS,
+  type Host,
+  type UserSettingsValues,
+  type VaultSettingsValues,
+} from '@ssh-central/ipc-contracts';
 import { joinLocalPath, useSftpActions, type SftpActions } from '../src/features/sftp/useSftpActions.js';
 import { clearDragPayload, type DragPayload } from '../src/features/sftp/drag-payload.js';
 
-const user: UserSettingsValues = {
-  language: 'de',
-  theme: 'dark',
-  terminalFontSize: 13,
-  showDebugLog: false,
-  pingTarget: '8.8.8.8',
-  showSystemBar: true,
-  sftpConcurrency: 3,
-  defaultOpener: 'default',
-  maxUploadSpeed: 0,
-  maxDownloadSpeed: 0,
-};
-
-const vault: VaultSettingsValues = {
-  autoLockMinutes: 15,
-  clipboardClearSeconds: 10,
-  fileOpeners: {},
-};
+// Aus den Schema-Defaults ableiten: neue Settings brechen die Fixture nicht.
+const user: UserSettingsValues = { ...USER_SETTINGS_DEFAULTS };
+const vault: VaultSettingsValues = { ...VAULT_SETTINGS_DEFAULTS };
 
 const localFile = { name: 'a.txt', path: '/l/a.txt', isDirectory: false };
 const remoteFile = { name: 'a.txt', path: '/r/a.txt', isDirectory: false };

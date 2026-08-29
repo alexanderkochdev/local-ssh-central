@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Host } from '@ssh-central/ipc-contracts';
+import { USER_SETTINGS_DEFAULTS, VAULT_SETTINGS_DEFAULTS, type Host } from '@ssh-central/ipc-contracts';
 import { useVaultStore } from '../src/store/vault-store.js';
 import { useHostsStore } from '../src/store/hosts-store.js';
 import { usePluginsStore } from '../src/store/plugins-store.js';
@@ -153,7 +153,15 @@ describe('useHostsStore', () => {
     setApi({ hosts: { upsert: vi.fn().mockResolvedValue(saved) } });
 
     await useHostsStore.getState().save({
-      host: { name: 'neu', host: 'example.com', port: 22, username: 'root', authMethod: 'password', tags: [], id: 'h1' },
+      host: {
+        name: 'neu',
+        host: 'example.com',
+        port: 22,
+        username: 'root',
+        authMethod: 'password',
+        tags: [],
+        id: 'h1',
+      },
     });
     expect(useHostsStore.getState().hosts).toEqual([saved]);
   });
@@ -199,7 +207,7 @@ describe('useSettingsStore', () => {
   it('setUser optimistisch + Sync vom Main', async () => {
     setApi({
       settings: {
-        setUser: vi.fn().mockResolvedValue({ language: 'de', theme: 'light', terminalFontSize: 13, showDebugLog: false }),
+        setUser: vi.fn().mockResolvedValue({ ...USER_SETTINGS_DEFAULTS, theme: 'light' }),
       },
     });
 
@@ -213,7 +221,7 @@ describe('useSettingsStore', () => {
   it('setVault optimistisch', async () => {
     setApi({
       settings: {
-        setVault: vi.fn().mockResolvedValue({ autoLockMinutes: 30, sftpConcurrency: 3, defaultOpener: 'default', clipboardClearSeconds: 10, fileOpeners: {} }),
+        setVault: vi.fn().mockResolvedValue({ ...VAULT_SETTINGS_DEFAULTS, autoLockMinutes: 30 }),
       },
     });
 
@@ -224,8 +232,8 @@ describe('useSettingsStore', () => {
   });
 
   it('init lädt User+Vault und abonniert onChanged', async () => {
-    const user = { language: 'en', theme: 'dark', terminalFontSize: 15, showDebugLog: true };
-    const vault = { autoLockMinutes: 60, sftpConcurrency: 8, defaultOpener: 'default', clipboardClearSeconds: 10, fileOpeners: {} };
+    const user = { ...USER_SETTINGS_DEFAULTS, language: 'en', terminalFontSize: 15, showDebugLog: true };
+    const vault = { ...VAULT_SETTINGS_DEFAULTS, autoLockMinutes: 60 };
     const onChanged = vi.fn(() => () => {});
     setApi({
       settings: {

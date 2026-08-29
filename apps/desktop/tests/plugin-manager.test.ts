@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { PluginManager, type PluginServices } from '../src/main/plugin/plugin-manager.js';
-import type { Host } from '@ssh-central/ipc-contracts';
+import { USER_SETTINGS_DEFAULTS, VAULT_SETTINGS_DEFAULTS, type Host } from '@ssh-central/ipc-contracts';
 
 let dir: string;
 let pluginsDir: string;
@@ -38,15 +38,9 @@ function makeHost(overrides: Partial<Host> = {}): Host {
 function makeManager(dir: string, override?: Partial<PluginServices>): PluginManager {
   const base: PluginServices = {
     hosts: () => [],
-    getUserSettings: () => ({
-      language: 'de',
-      theme: 'dark',
-      terminalFontSize: 13,
-      showDebugLog: false,
-      pingTarget: '8.8.8.8',
-      showSystemBar: true,
-    }),
-    getVaultSettings: () => ({ autoLockMinutes: 15, sftpConcurrency: 3, defaultOpener: 'default', clipboardClearSeconds: 10, fileOpeners: {} }),
+    // Aus den Schema-Defaults ableiten, damit neue Settings die Fixture nicht brechen.
+    getUserSettings: () => ({ ...USER_SETTINGS_DEFAULTS }),
+    getVaultSettings: () => ({ ...VAULT_SETTINGS_DEFAULTS }),
     openTerminal: async () => ({ sessionId: 's' }),
     writeTerminal: async () => {},
     resizeTerminal: async () => {},
@@ -66,10 +60,7 @@ function makeManager(dir: string, override?: Partial<PluginServices>): PluginMan
 async function installPlugin(name: string, registerBody: string): Promise<void> {
   const pdir = join(pluginsDir, name);
   await mkdir(pdir, { recursive: true });
-  await writeFile(
-    join(pdir, 'package.json'),
-    JSON.stringify({ name, version: '1.0.0', main: 'index.js' }),
-  );
+  await writeFile(join(pdir, 'package.json'), JSON.stringify({ name, version: '1.0.0', main: 'index.js' }));
   await writeFile(join(pdir, 'index.js'), `module.exports = { register: function (api) { ${registerBody} } };`);
 }
 
@@ -204,10 +195,7 @@ describe('PluginManager', () => {
   });
 
   it('Host-Faehigkeit ohne Permission wird abgelehnt', async () => {
-    await installPlugin(
-      'p9',
-      `api.ipc.handle('go', async () => { await api.terminal.open('h1'); return 'ok'; });`,
-    );
+    await installPlugin('p9', `api.ipc.handle('go', async () => { await api.terminal.open('h1'); return 'ok'; });`);
     const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
@@ -232,10 +220,7 @@ describe('PluginManager', () => {
   });
 
   it('Berechtigungs-Prompt erteilt beim ersten Zugriff (Zustimmung)', async () => {
-    await installPlugin(
-      'p11',
-      `api.ipc.handle('go', async () => { await api.terminal.open('h1'); return 'ok'; });`,
-    );
+    await installPlugin('p11', `api.ipc.handle('go', async () => { await api.terminal.open('h1'); return 'ok'; });`);
     const mgr = makeManager(pluginsDir, { dialog: async () => true });
     await mgr.loadAll();
 
@@ -246,10 +231,7 @@ describe('PluginManager', () => {
   });
 
   it('windows.openTerminal verlangt terminal + windows Berechtigung', async () => {
-    await installPlugin(
-      'w1',
-      `api.ipc.handle('go', async () => api.windows.openTerminal('h1', { command: 'top' }));`,
-    );
+    await installPlugin('w1', `api.ipc.handle('go', async () => api.windows.openTerminal('h1', { command: 'top' }));`);
     const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
@@ -269,10 +251,7 @@ describe('PluginManager', () => {
   });
 
   it('windows.openSftp verlangt sftp + windows Berechtigung', async () => {
-    await installPlugin(
-      'w2',
-      `api.ipc.handle('go', async () => api.windows.openSftp('h1'));`,
-    );
+    await installPlugin('w2', `api.ipc.handle('go', async () => api.windows.openSftp('h1'));`);
     const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
@@ -288,10 +267,7 @@ describe('PluginManager', () => {
   });
 
   it('windows.closeWindow verlangt windows Berechtigung', async () => {
-    await installPlugin(
-      'w3',
-      `api.ipc.handle('go', async () => api.windows.closeWindow('tw'));`,
-    );
+    await installPlugin('w3', `api.ipc.handle('go', async () => api.windows.closeWindow('tw'));`);
     const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
@@ -360,10 +336,7 @@ describe('PluginManager', () => {
   it('getTab loest eine relative Provider-URL gegen plugin:// auf (kein "Bad request")', async () => {
     const pdir = join(pluginsDir, 'relurl');
     await mkdir(pdir, { recursive: true });
-    await writeFile(
-      join(pdir, 'package.json'),
-      JSON.stringify({ name: 'relurl', version: '1.0.0', main: 'index.js' }),
-    );
+    await writeFile(join(pdir, 'package.json'), JSON.stringify({ name: 'relurl', version: '1.0.0', main: 'index.js' }));
     await writeFile(
       join(pdir, 'index.js'),
       `module.exports = { register: function (api) { api.tabs.register({ id: 't', label: 'T' }, async () => ({ title: 'X', url: 'ui/extra.html' })); } };`,
@@ -377,11 +350,13 @@ describe('PluginManager', () => {
 
   it('windows.openPanel loest eine relative URL gegen plugin:// auf', async () => {
     const opened: string[] = [];
-    await installPlugin(
-      'wpanel',
-      `api.ipc.handle('go', async () => api.windows.openPanel('ui/extra.html'));`,
-    );
-    const mgr = makeManager(pluginsDir, { openWindow: async (url) => { opened.push(url); return { id: 'p' }; } });
+    await installPlugin('wpanel', `api.ipc.handle('go', async () => api.windows.openPanel('ui/extra.html'));`);
+    const mgr = makeManager(pluginsDir, {
+      openWindow: async (url) => {
+        opened.push(url);
+        return { id: 'p' };
+      },
+    });
     await mgr.loadAll();
     await mgr.grantPermission('wpanel', 'windows');
 
@@ -391,10 +366,7 @@ describe('PluginManager', () => {
   });
 
   it('api.settings.getAll verlangt die "settings"-Permission und liefert User+Vault', async () => {
-    await installPlugin(
-      's1',
-      `api.ipc.handle('go', async () => api.settings.getAll());`,
-    );
+    await installPlugin('s1', `api.ipc.handle('go', async () => api.settings.getAll());`);
     const mgr = makeManager(pluginsDir);
     await mgr.loadAll();
 
@@ -406,8 +378,8 @@ describe('PluginManager', () => {
     const granted = await mgr.invokeIpc({ plugin: 's1', channel: 'go', payload: {} });
     expect(granted.ok).toBe(true);
     expect(granted.value).toMatchObject({
-      user: { language: 'de', theme: 'dark' },
-      vault: { autoLockMinutes: 15, sftpConcurrency: 3 },
+      user: { language: USER_SETTINGS_DEFAULTS.language, theme: USER_SETTINGS_DEFAULTS.theme },
+      vault: { autoLockMinutes: VAULT_SETTINGS_DEFAULTS.autoLockMinutes },
     });
   });
 });
