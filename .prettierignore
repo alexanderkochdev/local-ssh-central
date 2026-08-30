@@ -6,4 +6,6 @@ pnpm-lock.yaml
 apps/desktop/release/**
 apps/desktop/release-local/**
 apps/desktop/build/**
+# Generierte Icon-Sammlung (Devicon-Subset) nicht umformatieren.
+apps/renderer/src/features/sftp/devicon.json
 examples/**/dist/**

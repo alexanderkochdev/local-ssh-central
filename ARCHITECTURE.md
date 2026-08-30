@@ -158,7 +158,7 @@ apps/renderer/src/
 │   ├── vault/              # VaultGate (Login/Unlock), VaultView, ChangePasswordDialog
 │   ├── hosts/              # Host-Liste + Manager (+ "Befehl ausführen" → Multi-Host Runner)
 │   ├── terminal/           # xterm.js-Ansicht + SessionBar (Name + Farbe, setTitle)
-│   ├── sftp/               # Side-by-Side File Manager (drag-payload.ts, SelectionActions.tsx)
+│   ├── sftp/               # Side-by-Side File Manager (drag-payload.ts, SelectionActions.tsx, fileIcons.tsx + fileIcons.types.ts + fileIconCatalog.ts, devicon.json)
 │   ├── settings/           # UserSettingsDialog, VaultSettingsDialog
 │   ├── command-palette/    # Globale Command Palette (Strg+P), palette-utils (testbar)
 │   ├── command-runner/     # MultiCommandDialog (paralleles Kommando auf N Hosts), format.ts
