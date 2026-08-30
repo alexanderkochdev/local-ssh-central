@@ -90,8 +90,10 @@ function makeService() {
   const getConfig = vi.fn().mockResolvedValue({ host: 'example.com', port: 22, username: 'root' });
   const emit = vi.fn();
   const persist = vi.fn().mockResolvedValue(undefined);
-  const service = new SftpService(getConfig, emit, persist);
-  return { service, getConfig, emit, persist };
+  const persistLast = vi.fn().mockResolvedValue(undefined);
+  const getHost = vi.fn().mockReturnValue(undefined);
+  const service = new SftpService(getConfig, emit, persist, persistLast, getHost);
+  return { service, getConfig, emit, persist, persistLast, getHost };
 }
 
 /** Fake-SFTP-Wrapper mit realpath. */
@@ -118,7 +120,7 @@ beforeEach(() => {
 });
 
 describe('SftpService', () => {
-  it('open oeffnet eine SFTP-Session, persistiert den Fingerprint und liefert cwd', async () => {
+  it('open oeffnet eine SFTP-Session, persistiert den Fingerprint und liefert Home', async () => {
     const { service, persist } = makeService();
     const client = makeClient(makeSftp());
     mocks.cmInstances[0]!.acquire.mockResolvedValue(client);
@@ -126,12 +128,42 @@ describe('SftpService', () => {
 
     const result = await service.open('h1');
 
-    expect(result.cwd).toBe('/home/user');
     expect(result.handle).toBeTruthy();
+    expect(result.home).toBe('/home/user');
+    expect(result.startMode).toBe('ask');
+    expect(result.bookmarks).toEqual([]);
     expect(mocks.cmInstances[0]!.acquire).toHaveBeenCalledWith('sftp:h1', expect.any(Object));
     expect(persist).toHaveBeenCalledWith('h1', 'SHA256:key');
     expect(mocks.engineInstances).toHaveLength(1);
     expect(mocks.tmInstances).toHaveLength(1);
+  });
+
+  it('open uebernimmt Startmodus, Lesezeichen und letzten Standort vom Host', async () => {
+    const { service, getHost } = makeService();
+    mocks.cmInstances[0]!.acquire.mockResolvedValue(makeClient(makeSftp()));
+    getHost.mockReturnValue({
+      id: 'h1',
+      name: 'Web',
+      host: 'x',
+      port: 22,
+      username: 'root',
+      authMethod: 'password',
+      tags: [],
+      secrets: {},
+      createdAt: 1,
+      updatedAt: 1,
+      sftpStartMode: 'last',
+      lastSftpDir: '/var/www',
+      sftpBookmarks: [{ slug: 'logs', label: 'Logs', description: 'App-Logs', path: '/var/log' }],
+    });
+
+    const result = await service.open('h1');
+
+    expect(result.startMode).toBe('last');
+    expect(result.lastSftpDir).toBe('/var/www');
+    expect(result.bookmarks).toEqual([
+      { slug: 'logs', label: 'Logs', description: 'App-Logs', path: '/var/log' },
+    ]);
   });
 
   it('persistiert keinen Fingerprint, wenn keiner vorliegt', async () => {
@@ -210,6 +242,30 @@ describe('SftpService', () => {
     expect(client.end).not.toHaveBeenCalled();
     expect(mocks.cmInstances[0]!.release).toHaveBeenCalledWith('sftp:h1');
     await expect(service.list(handle, '/')).rejects.toThrow('SFTP-Session nicht gefunden');
+  });
+
+  it('close persistiert das zuletzt angezeigte Verzeichnis als letzten Standort', async () => {
+    const { service, persistLast } = makeService();
+    mocks.cmInstances[0]!.acquire.mockResolvedValue(makeClient(makeSftp()));
+    const { handle } = await service.open('h1');
+    mocks.engineInstances[0]!.list.mockResolvedValue([]);
+
+    await service.list(handle, '/var/www');
+    service.close(handle);
+
+    // Fire-and-forget: sofortiger Call im close. Erwartung: /var/www (zuletzt gelistet).
+    expect(persistLast).toHaveBeenCalledWith('h1', '/var/www');
+  });
+
+  it('close persistiert keinen letzten Standort, wenn nur Home angezeigt wurde', async () => {
+    const { service, persistLast } = makeService();
+    mocks.cmInstances[0]!.acquire.mockResolvedValue(makeClient(makeSftp()));
+    const { handle } = await service.open('h1');
+    mocks.engineInstances[0]!.list.mockResolvedValue([]);
+    // Navigieren zurueck ins Home: list('/home/user') == home -> kein Persist.
+    await service.list(handle, '/home/user');
+    service.close(handle);
+    expect(persistLast).not.toHaveBeenCalled();
   });
 
   it('open gibt die Verbindung frei, wenn das SFTP-Subsystem fehlschlaegt', async () => {

@@ -68,7 +68,11 @@ graph TD
 3. **Streaming**: Terminal-/SFTP-Daten laufen über einen pro Session eröffneten
    `MessageChannel` (hoher Durchsatz), Steuer-Kommandos über die IPC-Request/Response-API.
 4. **SFTP**: Renderer öffnet eine SFTP-Ansicht → Main erzeugt `SftpEngine`, liest/schreibt
-   lokal über `FsBridge` und remote über ssh2-SFTP, meldet Progress via Stream.
+   lokal über `FsBridge` und remote über ssh2-SFTP, meldet Progress via Stream. `sftp:open`
+   liefert neben dem Handle das Startverzeichnis-Kontext (`home`, `startMode`, `bookmarks`,
+   `lastSftpDir`); bei "Nachfragen" zeigt der Renderer den `SftpStartDirectoryDialog`. Beim
+   Schließen der Session speichert der Main-Process das zuletzt angezeigte Verzeichnis als
+   `lastSftpDir` am Host (automatisch, nicht im Home).
 
 ## Paket-Grenzen & Abhängigkeiten
 
@@ -156,9 +160,9 @@ apps/renderer/src/
 │   └── settings/           # SettingComponent, SettingSectionComponent, SettingsRenderer
 ├── features/
 │   ├── vault/              # VaultGate (Login/Unlock), VaultView, ChangePasswordDialog
-│   ├── hosts/              # Host-Liste + Manager (+ "Befehl ausführen" → Multi-Host Runner)
+│   ├── hosts/              # Host-Liste + Manager (+ "Befehl ausführen" → Multi-Host Runner); HostFormDialog + SftpBookmarksEditor (SFTP-Lesezeichen)
 │   ├── terminal/           # xterm.js-Ansicht + SessionBar (Name + Farbe, setTitle)
-│   ├── sftp/               # Side-by-Side File Manager (drag-payload.ts, SelectionActions.tsx, fileIcons.tsx + fileIcons.types.ts + fileIconCatalog.ts, devicon.json)
+│   ├── sftp/               # Side-by-Side File Manager (drag-payload.ts, SelectionActions.tsx, fileIcons.tsx + fileIcons.types.ts + fileIconCatalog.ts, devicon.json, SftpStartDirectoryDialog.tsx + sftpStartOptions.ts)
 │   ├── settings/           # UserSettingsDialog, VaultSettingsDialog
 │   ├── command-palette/    # Globale Command Palette (Strg+P), palette-utils (testbar)
 │   ├── command-runner/     # MultiCommandDialog (paralleles Kommando auf N Hosts), format.ts

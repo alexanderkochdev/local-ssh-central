@@ -10,15 +10,19 @@ import Autocomplete from '@mui/material/Autocomplete';
 import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useHostsStore } from '../../store/hosts-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { SftpBookmarksEditor } from './SftpBookmarksEditor.js';
 import type {
   AuthMethod,
   Host,
   HostSecretInput,
   HostUpsertRequest,
+  SftpBookmark,
+  SftpStartMode,
   SshKeyResult,
   SshKeyType,
   VaultEntrySummary,
@@ -46,6 +50,8 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
   const [authMethod, setAuthMethod] = useState<AuthMethod>('password');
   const [tags, setTags] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+  const [sftpStartMode, setSftpStartMode] = useState<SftpStartMode>('ask');
+  const [sftpBookmarks, setSftpBookmarks] = useState<SftpBookmark[]>([]);
   const [entries, setEntries] = useState<VaultEntrySummary[]>([]);
   const [passwordChoice, setPasswordChoice] = useState<string>('');
   const [password, setPassword] = useState('');
@@ -80,6 +86,8 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
     setAuthMethod(host?.authMethod ?? 'password');
     setTags(host?.tags ?? []);
     setNotes(host?.notes ?? '');
+    setSftpStartMode(host?.sftpStartMode ?? 'ask');
+    setSftpBookmarks(host?.sftpBookmarks ?? []);
     // Referenzen aus dem Vault vorbelegen.
     setPasswordChoice(host?.secrets?.passwordRef ?? NEW_PASSWORD);
     setKeyChoice(host?.secrets?.keyRef ?? '');
@@ -165,6 +173,8 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
         authMethod,
         tags,
         notes: notes.trim() || undefined,
+        sftpStartMode,
+        sftpBookmarks,
       },
       secrets,
     };
@@ -318,6 +328,22 @@ export function HostFormDialog({ open, host, onClose, onSaved }: HostFormDialogP
               <TextField {...params} label={t('hosts.tags')} placeholder={t('hosts.tagsPlaceholder')} />
             )}
           />
+
+          <Divider />
+          <TextField
+            label={t('hosts.sftpStartMode')}
+            select
+            value={sftpStartMode}
+            onChange={(e) => setSftpStartMode(e.target.value as SftpStartMode)}
+            fullWidth
+            helperText={t('hosts.sftpStartModeHint')}
+          >
+            <MenuItem value="ask">{t('hosts.sftpStartAsk')}</MenuItem>
+            <MenuItem value="home">{t('hosts.sftpStartHome')}</MenuItem>
+            <MenuItem value="last">{t('hosts.sftpStartLast')}</MenuItem>
+          </TextField>
+          <SftpBookmarksEditor value={sftpBookmarks} onChange={setSftpBookmarks} t={t} />
+
           <TextField label={t('hosts.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} fullWidth />
         </DialogContent>
         <DialogActions>

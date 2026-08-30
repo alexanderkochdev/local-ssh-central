@@ -196,7 +196,13 @@ app.whenReady().then(async () => {
   services.vault = vault;
   services.hosts = hosts;
   services.ssh = new SshService(getConfig, (event) => emit(IpcChannels.sshEvent, event), persistFingerprint);
-  services.sftp = new SftpService(getConfig, (event) => emit(IpcChannels.sftpEvent, event), persistFingerprint);
+  services.sftp = new SftpService(
+    getConfig,
+    (event) => emit(IpcChannels.sftpEvent, event),
+    persistFingerprint,
+    (hostId, dir) => hosts.persistLastSftpDir(hostId, dir),
+    (hostId) => hosts.getById(hostId),
+  );
   // User-Settings wirken schon vor dem Unlock im Main (SFTP-Parallelitaet + Bandbreiten-Limits).
   applyUserSettings(userSettings!.get());
   sessionWindows = new SessionWindowManager(services);

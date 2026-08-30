@@ -92,6 +92,22 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   Auswahl mit; sonst nur der angefasste Eintrag.
 - **Sichtbares Drop-Ziel**: Das Ziel-Pane hebt sich während eines Drags mit Rahmen und
   Hintergrund hervor.
+- **SFTP-Startverzeichnis pro Host** (Git-Issue #2): Beim Verbinden landet man nicht mehr
+  immer im Home-Ordner, sondern kann das Startverzeichnis wählen.
+  - **Startmodus** je Host (Host bearbeiten): **Nachfragen** (empfohlen), **Home-Ordner** oder
+    **Letzter Standort**. Bei "Nachfragen" erscheint beim Verbinden ein Auswahl-Dialog mit
+    Home, letztem Standort und den Lesezeichen des Hosts.
+  - **SFTP-Lesezeichen** je Host: Liste mit **Label, Beschreibung und Slug** + Verzeichnis,
+    für den schnellen Einstieg an oft genutzte Orte. Verwaltung im Host-Formular.
+  - **Letzter Standort** wird automatisch gepflegt: Beim Schließen der SFTP-Session wird das
+    zuletzt angezeigte Remote-Verzeichnis am Host gespeichert (nur wenn es vom Home abweicht,
+    um keine doppelte Option zu erzeugen). Der Dialog bietet es daraufhin als "Letzter Standort" an.
+  - Neue IPC-Felder in `sftp:open` (`SftpOpenResult`: `home`, `startMode`, `bookmarks`,
+    `lastSftpDir`); neue Host-Felder `sftpStartMode`, `sftpBookmarks`, `lastSftpDir`.
+    Testbare Logik in `features/sftp/sftpStartOptions.ts` (Chooser-Entscheidung +
+    Slug-Erzeugung), neue Komponenten `SftpStartDirectoryDialog` und `SftpBookmarksEditor`.
+    Beim Bearbeiten eines Lesezeichens wird eine Slug-Kollision mit einem anderen Lesezeichen
+    jetzt korrekt erkannt (eindeutige `bookmark:<slug>`-Schlüssel).
 - **Dateityp-Icons im SFTP-Dateimanager** (Git-Issue #1): Jeder Eintrag bekommt jetzt das
   zum Inhalt passende Icon statt eines generischen Datei-Symbols. **Quelltexte/Sprachen werden
   als echte, farbige Markenlogos angezeigt** (z. B. Python, TypeScript, Go, Rust, Java, C++,

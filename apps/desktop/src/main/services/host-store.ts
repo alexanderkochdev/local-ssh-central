@@ -77,6 +77,16 @@ export class HostStore {
     await this.persist();
   }
 
+  /** Persistiert das zuletzt im SFTP-Fenster angezeigte Verzeichnis (fuer "letzter Standort"). */
+  async persistLastSftpDir(id: string, dir: string): Promise<void> {
+    const host = this.hosts.find((h) => h.id === id);
+    if (!host || host.lastSftpDir === dir || !dir) {
+      return;
+    }
+    host.lastSftpDir = dir;
+    await this.persist();
+  }
+
   private async persist(): Promise<void> {
     const tmp = `${this.filePath}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(this.hosts, null, 2), 'utf8');
