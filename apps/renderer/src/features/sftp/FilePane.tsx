@@ -10,8 +10,6 @@ import Checkbox from '@mui/material/Checkbox';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import FolderIcon from '@mui/icons-material/Folder';
 import CircularProgress from '@mui/material/CircularProgress';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
@@ -21,6 +19,7 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import ClearAllIcon from '@mui/icons-material/ClearAll';
 import { Virtuoso } from 'react-virtuoso';
 import { dragSelection } from './drag-payload.js';
+import { FileIcon } from './fileIcons.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 
 export interface PaneEntry {
@@ -316,11 +315,7 @@ export function FilePane({
                       }}
                     />
                     <ListItemIcon sx={{ minWidth: 28 }}>
-                      {entry.isDirectory ? (
-                        <FolderIcon color="primary" fontSize="small" />
-                      ) : (
-                        <InsertDriveFileIcon fontSize="small" />
-                      )}
+                      <FileIcon name={entry.name} isDirectory={entry.isDirectory} />
                     </ListItemIcon>
                     <ListItemText
                       primary={entry.name}

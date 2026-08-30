@@ -92,6 +92,25 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   Auswahl mit; sonst nur der angefasste Eintrag.
 - **Sichtbares Drop-Ziel**: Das Ziel-Pane hebt sich während eines Drags mit Rahmen und
   Hintergrund hervor.
+- **Dateityp-Icons im SFTP-Dateimanager** (Git-Issue #1): Jeder Eintrag bekommt jetzt das
+  zum Inhalt passende Icon statt eines generischen Datei-Symbols. **Quelltexte/Sprachen werden
+  als echte, farbige Markenlogos angezeigt** (z. B. Python, TypeScript, Go, Rust, Java, C++,
+  PHP, HTML/CSS, Docker, …) — über **Iconify + Devicon**, offline als kuratierte Teilmenge
+  gebundelt (nur die genutzten Logos, kein CDN-Abruf zur Laufzeit). Für alles andere bleibt die
+  Material-Iconfamilie (MUI) mit **pro-Typ**-Differenzierung und dezent unterschiedlicher
+  Typfarbe erhalten: Markdown ≠ Reiner-Text ≠ PDF, CSV ≠ XLSX, ZIP ≠ JAR, Makefile ≠
+  Konfiguration. Neu außerdem die Kategorien **Präsentation** (`.ppt/.pptx/.odp`),
+  **Binärdatei** (`.exe/.dll/.iso/.dmg`), **Zertifikat/Schlüssel** (`.pem/.crt/.key`) und
+  **Daten/Notebook** (`.parquet/.avro/.ipynb`). Die kuratierten Listen decken die gängigen
+  Endungen breit ab, sodass auch weniger häufige Formate (`.avif`, `.3gp`, `.aiff`, `.mobi`,
+  `.psd`, `.cab`, …) eine passende Kategorie bekommen, ohne eine zusätzliche MIME-Datenbank
+  einzubinden. Gleichartige Formate, die kein eigenes Logo haben
+  (`.png`/`.jpg` oder `.mp4`/`.mkv`), sehen bewusst gleich aus, weil sie vom selben Inhaltstyp
+  sind. Die Zuordnung ist rein und testbar (`features/sftp/fileIconCatalog.ts` +
+  `fileIcons.types.ts`). Das im Issue vorgeschlagene Paket `atom-material-icons` ist eine
+  ungepflegte Browser-Extension (kein React-Baustein, serverseitige Abhängigkeiten) und daher
+  für den sandboxed Renderer ungeeignet — die Funktionalität wurde nativ mit
+  Iconify/Devicon + MUI umgesetzt.
 
 ### Changed
 
