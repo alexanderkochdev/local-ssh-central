@@ -4,7 +4,12 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+## [1.5.0] - 2026-08-31
+
+> **Automatisches Update**: Installationen ab **v1.4.0** erhalten dieses Update selbst
+> (Windows-Installation und Linux-AppImage werden beim nächsten App-Start angeboten). Nur
+> Installationen **v1.3.0 und älter** (ohne electron-updater) müssen einmalig manuell
+> von der Release-Seite aktualisiert werden.
 
 ### Fixed (CI)
 
