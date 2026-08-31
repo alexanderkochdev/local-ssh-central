@@ -91,4 +91,32 @@ describe('HostStore', () => {
     await store.load();
     await expect(store.setFingerprint('gibt-es-nicht', 'SHA256:x')).resolves.toBeUndefined();
   });
+
+  it('persistLastSftpDir aktualisiert den letzten Standort (nur bei Aenderung)', async () => {
+    const store = new HostStore(file);
+    await store.load();
+    const host = await store.upsert(input());
+
+    await store.persistLastSftpDir(host.id, '/var/www');
+    expect(store.getById(host.id)?.lastSftpDir).toBe('/var/www');
+
+    // Unveraendert -> kein Schreibvorgang (persist erneut aufrufen ist idempotent).
+    await store.persistLastSftpDir(host.id, '/var/www');
+    expect(store.getById(host.id)?.lastSftpDir).toBe('/var/www');
+
+    // Persistiert auf die Platte.
+    const reloaded = new HostStore(file);
+    await reloaded.load();
+    expect(reloaded.getById(host.id)?.lastSftpDir).toBe('/var/www');
+  });
+
+  it('persistLastSftpDir fuer unbekannte id oder leeren Pfad ist ein No-Op', async () => {
+    const store = new HostStore(file);
+    await store.load();
+    await expect(store.persistLastSftpDir('gibt-es-nicht', '/x')).resolves.toBeUndefined();
+
+    const host = await store.upsert(input());
+    await store.persistLastSftpDir(host.id, '');
+    expect(store.getById(host.id)?.lastSftpDir).toBeUndefined();
+  });
 });

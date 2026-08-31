@@ -6,7 +6,7 @@ import log from 'electron-log';
 import type { Client, SFTPWrapper } from 'ssh2';
 import { ConnectionManager, type HostConnectionConfig } from '@ssh-central/ssh-core';
 import { SftpEngine, TransferManager, RateLimiter } from '@ssh-central/sftp';
-import type { FsListResponse, SftpEvent, TransferInfo } from '@ssh-central/ipc-contracts';
+import type { FsListResponse, Host, SftpEvent, SftpOpenResult, TransferInfo } from '@ssh-central/ipc-contracts';
 import { openWith } from './openers.js';
 
 export type SftpEventSink = (event: SftpEvent) => void;
@@ -15,8 +15,14 @@ interface ManagedSftp {
   client: Client;
   /** Schluessel der zugrundeliegenden Verbindung im ConnectionManager (fuer release). */
   connectionKey: string;
+  /** Host-ID dieser SFTP-Session (fuer das Persistieren des letzten Verzeichnisses). */
+  hostId: string;
   engine: SftpEngine;
   transfers: TransferManager;
+  /** Zuletzt im SFTP-Fenster angezeigtes Remote-Verzeichnis. */
+  lastPath: string;
+  /** Home-Verzeichnis beim Oeffnen (nicht als "letzter Standort" speichern). */
+  home: string;
 }
 
 interface EditSession {
@@ -57,9 +63,11 @@ export class SftpService {
     private readonly getConfig: (hostId: string) => Promise<HostConnectionConfig>,
     private readonly emit: SftpEventSink,
     private readonly persistFingerprint: (hostId: string, fingerprint: string) => Promise<void>,
+    private readonly persistLastSftpDir: (hostId: string, dir: string) => Promise<void>,
+    private readonly getHost: (hostId: string) => Host | undefined,
   ) {}
 
-  async open(hostId: string): Promise<{ handle: string; cwd: string }> {
+  async open(hostId: string): Promise<SftpOpenResult> {
     const config = await this.getConfig(hostId);
     const connectionKey = `sftp:${hostId}`;
     const client = await this.connections.acquire(connectionKey, config);
@@ -75,26 +83,43 @@ export class SftpService {
       throw err;
     }
 
-    // Startverzeichnis: Home des angemeldeten Users (viele Server erlauben kein "/"-Listing).
-    // Fallback "/", wenn realpath fehlschlägt - darf das Öffnen nicht blockieren.
-    // Parallel zum TOFU-Persist, damit der Datei-Schreibvorgang das Oeffnen nicht verzoegert.
+    // Home des angemeldeten Users (viele Server erlauben kein "/"-Listing). Fallback "/",
+    // wenn realpath fehlschlägt - darf das Öffnen nicht blockieren. Parallel zum TOFU-Persist.
     const fingerprint = this.connections.getFingerprint(connectionKey);
-    const [cwd] = await Promise.all([
+    const [home] = await Promise.all([
       new Promise<string>((resolve) => {
         sftp.realpath('.', (err, path) => resolve(err || !path ? '/' : path));
       }),
       fingerprint ? this.persistFingerprint(hostId, fingerprint) : Promise.resolve(),
     ]);
 
+    const host = this.getHost(hostId);
     const handle = randomUUID();
     const engine = new SftpEngine(sftp);
     const transfers = new TransferManager(sftp, this.concurrency, 32, this.uploadLimiter, this.downloadLimiter);
-    this.handles.set(handle, { client, connectionKey, engine, transfers });
-    return { handle, cwd };
+    this.handles.set(handle, {
+      client,
+      connectionKey,
+      hostId,
+      engine,
+      transfers,
+      lastPath: home,
+      home,
+    });
+    return {
+      handle,
+      home,
+      startMode: host?.sftpStartMode ?? 'ask',
+      bookmarks: host?.sftpBookmarks ?? [],
+      lastSftpDir: host?.lastSftpDir,
+    };
   }
 
   async list(handle: string, path: string): Promise<FsListResponse> {
-    const entries = await this.require(handle).engine.list(path);
+    const managed = this.require(handle);
+    const entries = await managed.engine.list(path);
+    // Zuletzt angezeigtes Verzeichnis merken (fuer "letzter Standort" beim Schliessen).
+    managed.lastPath = path;
     return { path, entries };
   }
 
@@ -152,6 +177,13 @@ export class SftpService {
     }
     managed.transfers.cancelAll();
     this.handles.delete(handle);
+    // Zuletzt verwendetes Verzeichnis am Host festhalten -> beim naechsten Connect kann
+    // "letzter Standort" angeboten werden. Das Home-Startverzeichnis bewusst NICHT
+    // speichern (sonst erscheint es im Chooser doppelt und ueberschreibt eine sinnvolle
+    // Erinnerung). Fire-and-forget: Fehlermeldung waere irrelevant.
+    if (managed.lastPath && managed.lastPath !== managed.home) {
+      void this.persistLastSftpDir(managed.hostId, managed.lastPath);
+    }
     // Referenz freigeben statt den Client hart zu beenden: bei zwei SFTP-Fenstern zum
     // gleichen Host teilen sich beide eine Verbindung (Multiplexing) - ein `client.end()`
     // hier haette auch die andere Session gekappt. release() beendet sie erst, wenn

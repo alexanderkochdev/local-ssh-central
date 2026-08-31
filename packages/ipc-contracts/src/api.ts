@@ -31,6 +31,7 @@ import type {
   FsListResponse,
   SftpBatchTotalRequest,
   SftpEvent,
+  SftpOpenResult,
   TransferInfo,
   TransferRequest,
 } from './sftp.js';
@@ -107,7 +108,8 @@ export interface SshCentralApi {
     exec(request: CommandRunRequest): Promise<CommandRunResult>;
   };
   sftp: {
-    open(request: { hostId: string }): Promise<{ handle: string; cwd: string }>;
+    /** Oeffnet eine SFTP-Session und liefert Startverzeichnis-Kontext fuer die Initial-Navigation. */
+    open(request: { hostId: string }): Promise<SftpOpenResult>;
     close(request: { handle: string }): Promise<void>;
     openRemote(request: { handle: string; remotePath: string; openerId: string }): Promise<void>;
     createFile(request: { handle: string; path: string }): Promise<void>;

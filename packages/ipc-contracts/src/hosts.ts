@@ -11,6 +11,21 @@ export interface HostSecretRefs {
   keyPassphraseRef?: string;
 }
 
+/** SFTP-Startmodus eines Hosts (Initialverzeichnis beim Verbinden). */
+export type SftpStartMode = 'ask' | 'home' | 'last';
+
+/** Ein SFTP-Lesezeichen: schneller Einstieg an einen oft genutzten Ort. */
+export interface SftpBookmark {
+  /** Kurzer, eindeutiger Bezeichner (Slug) fuer das Lesezeichen. */
+  slug: string;
+  /** Anzeigename. */
+  label: string;
+  /** Optionale Beschreibung. */
+  description: string;
+  /** Zielverzeichnis auf dem Server. */
+  path: string;
+}
+
 export interface Host {
   /** UUID (stabil, dient als Vault-Eintrags-ID). */
   id: string;
@@ -25,6 +40,12 @@ export interface Host {
   /** Gespeicherter Host-Key-Fingerprint (TOFU). */
   fingerprint?: string;
   notes?: string;
+  /** SFTP-Lesezeichen (schneller Einstieg an oft genutzte Orte). */
+  sftpBookmarks?: SftpBookmark[];
+  /** Zuletzt verwendetes SFTP-Verzeichnis (automatisch gepflegt). */
+  lastSftpDir?: string;
+  /** SFTP-Startmodus beim Verbinden (Default 'ask' = nachfragen). */
+  sftpStartMode?: SftpStartMode;
   createdAt: number;
   updatedAt: number;
 }

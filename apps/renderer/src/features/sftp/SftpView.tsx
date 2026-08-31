@@ -10,6 +10,8 @@ import { PropertiesDialog } from './PropertiesDialog.js';
 import { OpenWithDialog } from './OpenWithDialog.js';
 import { ConnectView } from './ConnectView.js';
 import { SelectionActions } from './SelectionActions.js';
+import { SftpStartDirectoryDialog } from './SftpStartDirectoryDialog.js';
+import { buildStartOptions, decideInitialDir, type StartOption } from './sftpStartOptions.js';
 import { DebugLog, useDebugLog } from '../../components/DebugLog.js';
 import { useSftpActions, type Side } from './useSftpActions.js';
 import { buildContextMenuItems } from './contextMenuItems.js';
@@ -40,6 +42,8 @@ export function SftpView({ initialHostId }: SftpViewProps) {
   const [connecting, setConnecting] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [propsEntry, setPropsEntry] = useState<PaneEntry | null>(null);
+  const [startDialog, setStartDialog] = useState<{ options: StartOption[] } | null>(null);
+  const [startResolve, setStartResolve] = useState<((path: string | null) => void) | null>(null);
   const { entries, add } = useDebugLog();
   const localCache = useRef(new Map<string, PaneEntry[]>());
   const remoteCache = useRef(new Map<string, PaneEntry[]>());
@@ -125,24 +129,59 @@ export function SftpView({ initialHostId }: SftpViewProps) {
     }
   }
 
+  /** Oeffnet den Startverzeichnis-Dialog und liefert den gewaehlten Pfad (null = Abbruch/Home). */
+  function requestStartPath(options: StartOption[]): Promise<string | null> {
+    return new Promise((resolve) => {
+      setStartDialog({ options });
+      setStartResolve(() => resolve);
+    });
+  }
+
+  function handleStartSelect(path: string) {
+    startResolve?.(path);
+    setStartDialog(null);
+    setStartResolve(null);
+  }
+
+  function handleStartCancel() {
+    startResolve?.(null);
+    setStartDialog(null);
+    setStartResolve(null);
+  }
+
   async function openSftp(host: string) {
     setError(null);
     setConnecting(true);
     add(`Oeffne SFTP fuer Host ${host}`);
     try {
-      const { handle: h, cwd } = await window.api.sftp.open({ hostId: host });
-      add(`SFTP-Session erstellt: ${h}`);
-      add(`Remote-Startpfad: ${cwd || '/'}`);
+      const result = await window.api.sftp.open({ hostId: host });
+      add(`SFTP-Session erstellt: ${result.handle}`);
+      add(`Home: ${result.home}`);
       // Handle an den Main-Process melden: Er schliesst die SFTP-Session zuverlaessig
       // beim Fensterschliessen (React-Unmount-Cleanup laeuft dort nicht zuverlaessig).
-      window.api.windows.attachSftp(h);
-      setHandle(h);
-      handleRef.current = h;
+      window.api.windows.attachSftp(result.handle);
+      setHandle(result.handle);
+      handleRef.current = result.handle;
       setLocal(emptyPane(''));
-      setRemote(emptyPane(cwd || '/'));
+
+      // Startverzeichnis bestimmen: Home / letzter Standort / Lesezeichen (ggf. Dialog).
+      const decision = decideInitialDir({
+        home: result.home,
+        startMode: result.startMode,
+        lastSftpDir: result.lastSftpDir,
+        bookmarks: result.bookmarks,
+        t,
+      });
+      let initial = decision.path ?? result.home;
+      if (decision.ask) {
+        const options = buildStartOptions(result.home, result.lastSftpDir, result.bookmarks, t);
+        initial = (await requestStartPath(options)) ?? result.home;
+      }
+      add(`Remote-Startpfad: ${initial || '/'}`);
+      setRemote(emptyPane(initial || '/'));
       // Beide Seiten parallel laden: das Auflisten der Laufwerke (Windows-Volume-Namen)
       // und das Remote-Listing haben nichts miteinander zu tun.
-      await Promise.all([refreshLocal(''), refreshRemote(cwd || '/')]);
+      await Promise.all([refreshLocal(''), refreshRemote(initial || '/')]);
       add('SFTP verbunden.');
     } catch (e) {
       add(`Fehler: ${(e as Error).message}`);
@@ -289,6 +328,13 @@ export function SftpView({ initialHostId }: SftpViewProps) {
           connecting={connecting}
           initialHostId={initialHostId}
         />
+        <SftpStartDirectoryDialog
+          open={Boolean(startDialog)}
+          options={startDialog?.options ?? []}
+          t={t}
+          onSelect={handleStartSelect}
+          onCancel={handleStartCancel}
+        />
       </>
     );
   }
@@ -424,6 +470,13 @@ export function SftpView({ initialHostId }: SftpViewProps) {
         fileName={actions.openFileTarget?.entry.name ?? ''}
         onClose={() => actions.setOpenFileTarget(null)}
         onOpen={(openerId, remember) => actions.handleOpenChosen(openerId, remember)}
+      />
+      <SftpStartDirectoryDialog
+        open={Boolean(startDialog)}
+        options={startDialog?.options ?? []}
+        t={t}
+        onSelect={handleStartSelect}
+        onCancel={handleStartCancel}
       />
     </Box>
   );

@@ -1,5 +1,7 @@
 /** SFTP-Dateimanager-Kontrakte. */
 
+import type { SftpBookmark, SftpStartMode } from './hosts.js';
+
 export interface SftpEntry {
   name: string;
   path: string;
@@ -8,6 +10,19 @@ export interface SftpEntry {
   size?: number;
   mode?: number;
   modifiedAt?: number;
+}
+
+/** Ergebnis einer SFTP-Oeffnung: Verbindungs-Handle plus Startverzeichnis-Kontext. */
+export interface SftpOpenResult {
+  handle: string;
+  /** Home-Verzeichnis des angemeldeten Users (Fallback '/'). */
+  home: string;
+  /** SFTP-Startmodus des Hosts. */
+  startMode: SftpStartMode;
+  /** SFTP-Lesezeichen des Hosts. */
+  bookmarks: SftpBookmark[];
+  /** Zuletzt verwendetes Verzeichnis (falls vorhanden). */
+  lastSftpDir?: string;
 }
 
 export interface FsListRequest {
