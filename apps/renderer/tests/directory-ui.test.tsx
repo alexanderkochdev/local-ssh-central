@@ -45,9 +45,7 @@ describe('SftpStartDirectoryDialog', () => {
 });
 
 describe('SftpBookmarksEditor', () => {
-  const bookmarks: SftpBookmark[] = [
-    { slug: 'logs', label: 'Logs', description: 'App-Logs', path: '/var/log' },
-  ];
+  const bookmarks: SftpBookmark[] = [{ slug: 'logs', label: 'Logs', description: 'App-Logs', path: '/var/log' }];
 
   beforeEach(() => {
     (window as unknown as Record<string, unknown>).api = {};
@@ -77,9 +75,7 @@ describe('SftpBookmarksEditor', () => {
     fireEvent.change(screen.getByLabelText(/hosts\.sftpBookmarkPath/), { target: { value: '/var/log' } });
     fireEvent.click(screen.getByText('action.save'));
 
-    expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({ label: 'Logs', path: '/var/log', slug: 'logs' }),
-    ]);
+    expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ label: 'Logs', path: '/var/log', slug: 'logs' })]);
   });
 
   it('zeigt einen Fehler bei fehlendem Pfad', () => {
@@ -90,5 +86,28 @@ describe('SftpBookmarksEditor', () => {
     fireEvent.click(screen.getByText('action.save'));
     expect(screen.getByText('hosts.sftpBookmarkMissing')).toBeTruthy();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('beim Bearbeiten wird ein kollidierendes eigenes Slug vergeben statt das andere zu ueberschreiben', () => {
+    const onChange = vi.fn();
+    // Zwei Lesezeichen: das zweite hat bereits das Slug 'webserver' (per Label abgeleitet).
+    const two: SftpBookmark[] = [
+      { slug: 'logs', label: 'Logs', description: '', path: '/var/log' },
+      { slug: 'webserver', label: 'Webserver', description: '', path: '/var/www' },
+    ];
+    render(<SftpBookmarksEditor value={two} onChange={onChange} t={t} />);
+
+    // Erstes Lesezeichen bearbeiten und sein Slug auf 'webserver' setzen -> Kollision.
+    const editButtons = document.querySelectorAll('[title="action.edit"]');
+    fireEvent.click(editButtons[0]!);
+    const slugField = screen.getAllByLabelText(/hosts\.sftpBookmarkSlug/)[0]!;
+    fireEvent.change(slugField, { target: { value: 'webserver' } });
+    fireEvent.click(screen.getByText('action.save'));
+
+    // Es darf kein zweites 'webserver' entstehen - uniqueSlug soll auf 'webserver-2' ausweichen.
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ slug: 'webserver-2', label: 'Logs' }),
+      expect.objectContaining({ slug: 'webserver', label: 'Webserver' }),
+    ]);
   });
 });

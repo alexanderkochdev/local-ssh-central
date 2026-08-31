@@ -153,14 +153,18 @@ function SftpBookmarkDialog({ state, existingSlugs, t, onSave, onClose }: SftpBo
     return <Dialog open={false} />;
   }
 
-  const isEdit = state.index >= 0;
+  const current = state;
+  const isEdit = current.index >= 0;
 
   function handleSubmit() {
     if (!label.trim() || !path.trim()) {
       setError(t('hosts.sftpBookmarkMissing'));
       return;
     }
-    const finalSlug = uniqueSlug(slug || label, existingSlugs.filter((s) => s !== slug));
+    const finalSlug = uniqueSlug(
+      slug || label,
+      existingSlugs.filter((s) => s !== current.bookmark.slug),
+    );
     onSave({
       slug: finalSlug,
       label: label.trim(),
@@ -173,11 +177,45 @@ function SftpBookmarkDialog({ state, existingSlugs, t, onSave, onClose }: SftpBo
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{isEdit ? t('hosts.sftpBookmarkEdit') : t('hosts.sftpBookmarkNew')}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
-        <TextField label={t('hosts.sftpBookmarkLabel')} value={label} onChange={(e) => setLabel(e.target.value)} fullWidth required autoFocus />
-        <TextField label={t('hosts.sftpBookmarkDescription')} value={description} onChange={(e) => setDescription(e.target.value)} fullWidth multiline minRows={2} />
-        <TextField label={t('hosts.sftpBookmarkSlug')} value={slug} onChange={(e) => { setSlug(e.target.value); setSlugTouched(true); }} fullWidth helperText={t('hosts.sftpBookmarkSlugHint')} />
-        <TextField label={t('hosts.sftpBookmarkPath')} value={path} onChange={(e) => setPath(e.target.value)} fullWidth required placeholder="/var/www" />
-        {error && <Typography variant="body2" color="error">{error}</Typography>}
+        <TextField
+          label={t('hosts.sftpBookmarkLabel')}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          fullWidth
+          required
+          autoFocus
+        />
+        <TextField
+          label={t('hosts.sftpBookmarkDescription')}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          fullWidth
+          multiline
+          minRows={2}
+        />
+        <TextField
+          label={t('hosts.sftpBookmarkSlug')}
+          value={slug}
+          onChange={(e) => {
+            setSlug(e.target.value);
+            setSlugTouched(true);
+          }}
+          fullWidth
+          helperText={t('hosts.sftpBookmarkSlugHint')}
+        />
+        <TextField
+          label={t('hosts.sftpBookmarkPath')}
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          fullWidth
+          required
+          placeholder="/var/www"
+        />
+        {error && (
+          <Typography variant="body2" color="error">
+            {error}
+          </Typography>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t('action.cancel')}</Button>
