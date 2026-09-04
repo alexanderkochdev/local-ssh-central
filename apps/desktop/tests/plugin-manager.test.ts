@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -381,5 +381,86 @@ describe('PluginManager', () => {
       user: { language: USER_SETTINGS_DEFAULTS.language, theme: USER_SETTINGS_DEFAULTS.theme },
       vault: { autoLockMinutes: VAULT_SETTINGS_DEFAULTS.autoLockMinutes },
     });
+  });
+
+  it('Storage persistiert ueber Instanzen (write-through, Punkt 2)', async () => {
+    await installPlugin('p13', ``);
+    const mgr1 = makeManager(pluginsDir);
+    await mgr1.loadAll();
+    await mgr1.storageSet('p13', 'note', 'hallo');
+
+    const mgr2 = makeManager(pluginsDir);
+    await mgr2.loadAll();
+    expect(await mgr2.storageGet('p13', 'note')).toBe('hallo');
+  });
+
+  it('clearPluginData invalidiert den Storage-Cache (Punkt 2)', async () => {
+    await installPlugin('p14', ``);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+    await mgr.storageSet('p14', 'note', 'x');
+    expect(await mgr.storageGet('p14', 'note')).toBe('x');
+
+    await mgr.clearPluginData('p14');
+    expect(await mgr.storageGet('p14', 'note')).toBeUndefined();
+  });
+
+  it('beendet einen haengenden IPC-Handler nach Timeout (Punkt 4)', async () => {
+    await installPlugin('hang', `api.ipc.handle('go', () => new Promise(() => {}));`);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    vi.useFakeTimers();
+    const promise = mgr.invokeIpc({ plugin: 'hang', channel: 'go', payload: {} });
+    await vi.advanceTimersByTimeAsync(10100);
+    const res = await promise;
+    vi.useRealTimers();
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('Zeitlimit');
+  });
+
+  it('beendet einen haengenden resolveConnectionConfig-Hook nach Timeout (Punkt 4)', async () => {
+    await installPlugin('hangcfg', `api.hooks.resolveConnectionConfig(() => new Promise(() => {}));`);
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    vi.useFakeTimers();
+    const promise = mgr.resolveConnectionConfig(makeHost(), async () => ({
+      host: '1.2.3.4',
+      port: 22,
+      username: 'root',
+    }));
+    // Rejection-Handler VOR dem Voranschritt anhaengen, sonst gilt die Rejection als unhandled.
+    const assertion = expect(promise).rejects.toThrow(/Zeitlimit/);
+    await vi.advanceTimersByTimeAsync(10100);
+    vi.useRealTimers();
+    await assertion;
+  });
+
+  it('listet deaktivierte Plugins mit enabled=false, registriert sie aber nicht', async () => {
+    const pdir = join(pluginsDir, 'disabled');
+    await mkdir(pdir, { recursive: true });
+    await writeFile(
+      join(pdir, 'package.json'),
+      JSON.stringify({ name: 'disabled', version: '1.0.0', main: 'index.js', sshCentral: { enabled: false } }),
+    );
+    await writeFile(
+      join(pdir, 'index.js'),
+      `module.exports = { register: function (api) { api.tabs.register({ id: 't', label: 'T' }, async () => ({ title: 'X', body: 'y' })); } };`,
+    );
+    const mgr = makeManager(pluginsDir);
+    await mgr.loadAll();
+
+    expect(mgr.list()).toHaveLength(1);
+    expect(mgr.list()[0]!.name).toBe('disabled');
+    expect(mgr.list()[0]!.enabled).toBe(false);
+    // Deaktiviert => nicht registriert => Tab nicht verfuegbar.
+    await expect(mgr.getTab('disabled', 't')).rejects.toThrow(/nicht gefunden/);
+
+    // Wieder aktivieren => registriert und Tab verfuegbar.
+    await mgr.setEnabled('disabled', true);
+    expect(mgr.list()[0]!.enabled).toBe(true);
+    expect(await mgr.getTab('disabled', 't')).toEqual({ title: 'X', body: 'y' });
   });
 });

@@ -70,4 +70,26 @@ describe('plugin:// protocol', () => {
     const res = await handler({ url: 'plugin://sample/nicht-da.js' });
     expect(res.status).toBe(404);
   });
+
+  it('liefert fuer wiederholte Aufrufe stabiles, bridge-injiziertes HTML (Cache, Punkt 3)', async () => {
+    await writeFile(join(dir!, 'sample', 'index.html'), '<html><head></head></html>', 'utf8');
+    const handler = getHandler();
+    const r1 = await handler({ url: 'plugin://sample/index.html' });
+    const r2 = await handler({ url: 'plugin://sample/index.html' });
+    const t1 = await r1.text();
+    const t2 = await r2.text();
+    expect(t1).toBe(t2);
+    expect(t2).toContain('window.sshCentral');
+  });
+
+  it('invalidiert den Asset-Cache bei Dateiaenderung (mtime/size, Punkt 3)', async () => {
+    await writeFile(join(dir!, 'sample', 'app.js'), 'x', 'utf8');
+    const handler = getHandler();
+    await handler({ url: 'plugin://sample/app.js' });
+
+    // Groessere Datei -> size aendert sich -> Cache muss invalidieren.
+    await writeFile(join(dir!, 'sample', 'app.js'), 'const y = 2;', 'utf8');
+    const res = await handler({ url: 'plugin://sample/app.js' });
+    expect(await res.text()).toBe('const y = 2;');
+  });
 });

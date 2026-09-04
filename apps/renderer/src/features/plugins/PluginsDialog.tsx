@@ -27,7 +27,7 @@ interface PluginsDialogProps {
   onClose: () => void;
 }
 
-const ALL_PERMISSIONS: PluginPermission[] = ['hosts', 'terminal', 'sftp', 'windows'];
+const ALL_PERMISSIONS: PluginPermission[] = ['hosts', 'terminal', 'sftp', 'windows', 'settings'];
 
 /** Verwaltet lokal installierte Plugins: Liste, ZIP-Installation, Enable/Disable, Berechtigungen, Daten. */
 export function PluginsDialog({ open, onClose }: PluginsDialogProps) {

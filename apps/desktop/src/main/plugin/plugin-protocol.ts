@@ -57,12 +57,36 @@ export function registerPluginSchemePrivileges(): void {
   ]);
 }
 
+/** Gecachtes plugin://-Asset (entweder HTML mit CSP/Bridge oder Rohbytes). */
+interface CachedAsset {
+  type: string;
+  csp?: string;
+  html?: string;
+  bytes?: Uint8Array;
+  mtimeMs: number;
+  size: number;
+}
+
+function buildResponse(entry: CachedAsset): Response {
+  const headers: Record<string, string> = { 'content-type': entry.type };
+  if (entry.csp) headers['content-security-policy'] = entry.csp;
+  if (entry.html !== undefined) return new Response(entry.html, { headers });
+  return new Response(entry.bytes as Uint8Array, { headers });
+}
+
 /** Registriert das plugin://-Protocol: serviert Dateien aus userData/plugins/<name>/. */
 export function registerPluginProtocol(pluginsDir: string): void {
   if (!protocol || typeof protocol.handle !== 'function') {
     log.warn('[plugin] protocol handler skipped');
     return;
   }
+
+  // Static-Asset-Cache (Punkt 3): vermeidet wiederholtes Disk-Read + Bridge-Injection
+  // bei jedem erneuten Laden einer Plugin-UI (Tab-Wechsel, Refresh). Wird bei
+  // Aenderung (mtime/size) invalidiert und ist groessen-begrenzt (LRU).
+  const assetCache = new Map<string, CachedAsset>();
+  const MAX_CACHED = 128;
+
   protocol.handle(SCHEME, async (request) => {
     try {
       const url = new URL(request.url);
@@ -73,17 +97,31 @@ export function registerPluginProtocol(pluginsDir: string): void {
       if (!isAbsolute(file) || !file.startsWith(root + sep)) {
         return new Response('Forbidden', { status: 403 });
       }
+
+      const stat = await fs.stat(file);
+      const cached = assetCache.get(file);
+      if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+        return buildResponse(cached);
+      }
+
       const data = await fs.readFile(file);
       const type = MIME_TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream';
-      const headers: Record<string, string> = { 'content-type': type };
+      let entry: CachedAsset;
       if (type.includes('text/html')) {
-        headers['content-security-policy'] =
+        const csp =
           "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
-        // Bridge in die Plugin-Seite injizieren.
+        // Bridge in die Plugin-Seite injizieren (nur einmal cachen, nicht je Request).
         const html = data.toString('utf8').replace('</head>', BRIDGE_SCRIPT + '</head>');
-        return new Response(html, { headers });
+        entry = { type, csp, html, mtimeMs: stat.mtimeMs, size: stat.size };
+      } else {
+        entry = { type, bytes: new Uint8Array(data), mtimeMs: stat.mtimeMs, size: stat.size };
       }
-      return new Response(data, { headers });
+      assetCache.set(file, entry);
+      if (assetCache.size > MAX_CACHED) {
+        const first = assetCache.keys().next().value;
+        if (first !== undefined) assetCache.delete(first);
+      }
+      return buildResponse(entry);
     } catch {
       return new Response('Not found', { status: 404 });
     }

@@ -24,7 +24,7 @@ import { MultiCommandDialog } from '../command-runner/MultiCommandDialog.js';
 import { useVaultStore } from '../../store/vault-store.js';
 import { usePluginsStore } from '../../store/plugins-store.js';
 import { useSettingsStore } from '../../store/settings-store.js';
-import { useWorkspaceStore } from '../../store/workspace-store.js';
+import { useWorkspaceStore, resolveActiveView } from '../../store/workspace-store.js';
 import { usePaletteStore } from '../../store/palette-store.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 
@@ -51,15 +51,21 @@ export function Workspace() {
   const loadPlugins = usePluginsStore((s) => s.load);
   const pluginTabs = useMemo(
     () =>
-      plugins.flatMap((p) =>
-        p.tabs.map((tab) => ({ key: `plugin:${p.name}:${tab.id}`, label: tab.label })),
-      ),
+      plugins
+        .filter((p) => p.enabled)
+        .flatMap((p) => p.tabs.map((tab) => ({ key: `plugin:${p.name}:${tab.id}`, label: tab.label }))),
     [plugins],
   );
 
   useEffect(() => {
     void loadPlugins();
   }, [loadPlugins]);
+
+  // Randfall: Wird ein Plugin deaktiviert/deinstalliert, waehrend sein Tab aktiv ist,
+  // springt der View zurueck zu 'hosts', statt auf einem toten 'plugin:...'-View zu haengen.
+  useEffect(() => {
+    setView(resolveActiveView(view, plugins));
+  }, [view, plugins, setView]);
 
   function renderView() {
     if (view.startsWith('plugin:')) {

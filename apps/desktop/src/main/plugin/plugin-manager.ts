@@ -61,6 +61,9 @@ export interface PluginServices {
 
 const IPC_PREFIX = 'plugin:';
 
+/** Hoechstdauer fuer Plugin-Hooks/IPC-Handler, damit ein haengendes Plugin die App nicht blockiert. */
+const HOOK_TIMEOUT_MS = 10_000;
+
 /** Verwaltet Plugins: Laden, Hooks, Events, Tabs, IPC-Bridge, Dialoge, Secrets, Persistenz, Berechtigungen, Host-Faehigkeiten. */
 export class PluginManager {
   private loaded: LoadedPlugin[] = [];
@@ -75,6 +78,16 @@ export class PluginManager {
   private readonly LOG_LIMIT = 500;
   /** Test-Hook: ueberschreibt den SafeStorage (null = Produktion via electron). */
   private safeStorageOverride: Electron.SafeStorage | undefined | null = null;
+
+  // --- In-Memory-Caches: entfernen wiederholte Datei-Zugriffe aus dem heissen Pfad. ---
+  /** Storage (Plugin-Daten) je Plugin, lazy vom Disk geladen, write-through. */
+  private storageCache = new Map<string, Record<string, string>>();
+  /** Secrets (CIPHERTEXT, niemals Klartext) je Plugin, lazy vom Disk geladen. */
+  private secretCache = new Map<string, Record<string, string>>();
+  /** Berechtigungen: einmalig vom Disk gelesen, danach rein im Speicher. */
+  private permissionsCache: Record<string, PluginPermission[]> | null = null;
+  /** Default-Permissions je Plugin (aus package.json), einmalig gelesen. */
+  private defaultPermsCache = new Map<string, PluginPermission[]>();
 
   constructor(
     private readonly pluginsDir: string,
@@ -128,6 +141,7 @@ export class PluginManager {
 
   async uninstall(name: string): Promise<void> {
     this.disposePlugin(name);
+    this.dropPluginCaches(name);
     await fs.rm(join(this.pluginsDir, name), { recursive: true, force: true });
     await fs.rm(join(this.pluginsDir, '.secrets', `${name}.json`), { force: true }).catch(() => {});
     await this.revokeAllPermissions(name);
@@ -145,6 +159,7 @@ export class PluginManager {
   }
 
   async clearPluginData(name: string): Promise<void> {
+    this.dropPluginCaches(name);
     await fs.rm(join(this.pluginsDir, name, 'data'), { recursive: true, force: true }).catch(() => {});
     await fs.rm(join(this.pluginsDir, '.secrets', `${name}.json`), { force: true }).catch(() => {});
   }
@@ -159,7 +174,7 @@ export class PluginManager {
     const next = async (): Promise<HostConnectionConfig> => {
       const mw = this.configMiddlewares[index++];
       if (!mw) return buildBase();
-      return mw.handler(host, next);
+      return this.withTimeout(() => mw.handler(host, next), `${mw.name}:resolveConnectionConfig`);
     };
     return next();
   }
@@ -222,7 +237,7 @@ export class PluginManager {
       return { ok: false, error: `Kanal "${req.channel}" nicht registriert.` };
     }
     try {
-      const value = await handler(req.payload, {});
+      const value = await this.withTimeout(() => handler(req.payload, {}), `${req.plugin}:${req.channel}`);
       return { ok: true, value };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
@@ -344,6 +359,26 @@ export class PluginManager {
     this.ipcHandlers.clear();
     this.ipcListeners.clear();
     this.permissionListeners.clear();
+    this.defaultPermsCache.clear();
+  }
+
+  /**
+   * Fuehrt eine Plugin-Funktion mit Timeout aus. Ein hängendes/synchron blockierendes
+   * Plugin kann die App so nicht mehr dauerhaft einfrieren (Punkt 4 der Performance-Analyse).
+   * Ablauf statt des Promises; fuer synchrone Endlos-Loops hilft nur echtes Prozess-Isolation.
+   */
+  private async withTimeout<T>(fn: () => Promise<T> | T, name: string): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(fn),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Plugin-Hook "${name}" hat das Zeitlimit (${HOOK_TIMEOUT_MS} ms) ueberschritten.`)), HOOK_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private disposePlugin(name: string): void {
@@ -357,7 +392,25 @@ export class PluginManager {
 
   private async loadDir(dir: string): Promise<void> {
     const manifest = await this.readManifest(dir);
-    if (!manifest?.name || manifest.sshCentral?.enabled === false) return;
+    if (!manifest?.name) return;
+    const enabled = manifest.sshCentral?.enabled !== false;
+    const hasUi = Boolean(manifest.sshCentral?.ui?.entry);
+    const uiEntry = manifest.sshCentral?.ui?.entry;
+    const plugin: LoadedPlugin = {
+      name: manifest.name,
+      version: manifest.version,
+      description: manifest.description,
+      dir,
+      enabled,
+      tabs: manifest.sshCentral?.tabs ?? [],
+      hasUi,
+      uiEntry,
+      session: new Map(),
+    };
+    // Deaktivierte Plugins werden trotzdem gelistet (damit man sie wieder aktivieren kann),
+    // aber NICHT registriert (keine Hooks/Tabs/Events/IPC) - nur `loaded` wird gefuellt.
+    this.loaded.push(plugin);
+    if (!enabled) return;
     const mainPath = join(dir, manifest.main ?? 'index.js');
     if (!(await this.exists(mainPath))) return;
     try {
@@ -366,20 +419,6 @@ export class PluginManager {
       const raw = requireShim(mainPath) as PluginModule & { default?: PluginModule };
       const mod = typeof raw?.register === 'function' ? raw : (raw?.default ?? raw);
       if (typeof mod?.register !== 'function') return;
-      const hasUi = Boolean(manifest.sshCentral?.ui?.entry);
-      const uiEntry = manifest.sshCentral?.ui?.entry;
-      const plugin: LoadedPlugin = {
-        name: manifest.name,
-        version: manifest.version,
-        description: manifest.description,
-        dir,
-        enabled: true,
-        tabs: manifest.sshCentral?.tabs ?? [],
-        hasUi,
-        uiEntry,
-        session: new Map(),
-      };
-      this.loaded.push(plugin);
       const api = this.buildApi(plugin, manifest);
       mod.register(api);
       if (typeof mod.dispose === 'function') {
@@ -530,6 +569,13 @@ export class PluginManager {
 
   // ------------------------------------------------------------ Datei-Helfer
 
+  /** Entfernt die In-Memory-Caches eines Plugins (Storage/Secrets), z.B. bei clear/uninstall. */
+  private dropPluginCaches(name: string): void {
+    this.storageCache.delete(name);
+    this.secretCache.delete(name);
+    this.defaultPermsCache.delete(name);
+  }
+
   /** Erfasst einen Plugin-Log-Eintrag (Ring-Puffer) + schreibt ins App-Log. */
   private captureLog(name: string, level: PluginLogLevel, message: string): void {
     this.logs.push({ plugin: name, level, message, ts: Date.now() });
@@ -562,13 +608,19 @@ export class PluginManager {
     return join(this.pluginsDir, '.secrets', `${name}.json`);
   }
   private async readSecrets(name: string): Promise<Record<string, string>> {
+    const cached = this.secretCache.get(name);
+    if (cached) return cached;
+    let data: Record<string, string>;
     try {
-      return JSON.parse(await fs.readFile(this.secretPath(name), 'utf8'));
+      data = JSON.parse(await fs.readFile(this.secretPath(name), 'utf8'));
     } catch {
-      return {};
+      data = {};
     }
+    this.secretCache.set(name, data);
+    return data;
   }
   private async writeSecrets(name: string, data: Record<string, string>): Promise<void> {
+    this.secretCache.set(name, data);
     const p = this.secretPath(name);
     await fs.mkdir(dirname(p), { recursive: true });
     const tmp = `${p}.tmp`;
@@ -580,13 +632,19 @@ export class PluginManager {
     return join(this.storageDir(name), 'storage.json');
   }
   private async readStorage(name: string): Promise<Record<string, string>> {
+    const cached = this.storageCache.get(name);
+    if (cached) return cached;
+    let data: Record<string, string>;
     try {
-      return JSON.parse(await fs.readFile(this.storagePath(name), 'utf8'));
+      data = JSON.parse(await fs.readFile(this.storagePath(name), 'utf8'));
     } catch {
-      return {};
+      data = {};
     }
+    this.storageCache.set(name, data);
+    return data;
   }
   private async writeStorage(name: string, data: Record<string, string>): Promise<void> {
+    this.storageCache.set(name, data);
     const p = this.storagePath(name);
     await fs.mkdir(dirname(p), { recursive: true });
     const tmp = `${p}.tmp`;
@@ -595,29 +653,39 @@ export class PluginManager {
   }
 
   private defaultPermissions(name: string): PluginPermission[] {
+    const cached = this.defaultPermsCache.get(name);
+    if (cached) return cached;
     const plugin = this.loaded.find((l) => l.name === name);
-    if (!plugin) return [];
-    try {
-      const manifest = JSON.parse(readFileSync(join(plugin.dir, 'package.json'), 'utf8')) as PluginManifest;
-      const declared = manifest.sshCentral?.permissions;
-      if (!declared) return [];
-      return (Object.keys(declared) as PluginPermission[]).filter((p) => declared[p] === true);
-    } catch {
-      return [];
+    let perms: PluginPermission[] = [];
+    if (plugin) {
+      try {
+        const manifest = JSON.parse(readFileSync(join(plugin.dir, 'package.json'), 'utf8')) as PluginManifest;
+        const declared = manifest.sshCentral?.permissions;
+        perms = declared ? (Object.keys(declared) as PluginPermission[]).filter((p) => declared[p] === true) : [];
+      } catch {
+        perms = [];
+      }
     }
+    this.defaultPermsCache.set(name, perms);
+    return perms;
   }
 
   private permissionsPath(): string {
     return join(this.pluginsDir, 'permissions.json');
   }
   private readPermissions(): Record<string, PluginPermission[]> {
+    if (this.permissionsCache) return this.permissionsCache;
+    let data: Record<string, PluginPermission[]>;
     try {
-      return JSON.parse(readFileSync(this.permissionsPath(), 'utf8'));
+      data = JSON.parse(readFileSync(this.permissionsPath(), 'utf8'));
     } catch {
-      return {};
+      data = {};
     }
+    this.permissionsCache = data;
+    return data;
   }
   private async writePermissions(data: Record<string, PluginPermission[]>): Promise<void> {
+    this.permissionsCache = data;
     await fs.mkdir(this.pluginsDir, { recursive: true });
     const tmp = `${this.permissionsPath()}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(data), 'utf8');
