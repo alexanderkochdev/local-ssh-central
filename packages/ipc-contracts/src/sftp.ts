@@ -79,4 +79,6 @@ export type SftpEvent =
   | { type: 'transferDone'; transfer: TransferInfo }
   | { type: 'transferError'; transfer: TransferInfo }
   | { type: 'transferBatchTotal'; total: number; totalBytes: number }
-  | { type: 'directoryChanged'; handle: string; path: string };
+  | { type: 'directoryChanged'; handle: string; path: string }
+  /** Die SFTP-Verbindung zu einem Host ist unerwartet beendet (z.B. Netzwerkabriss). */
+  | { type: 'connectionClosed'; hostId: string };

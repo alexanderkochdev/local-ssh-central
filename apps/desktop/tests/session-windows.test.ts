@@ -136,4 +136,52 @@ describe('SessionWindowManager', () => {
     manager.closeAll();
     expect(instances[1].close).toHaveBeenCalled();
   });
+
+  it('closeTerminalSession schliesst das Fenster einer beendeten Session', () => {
+    const services = makeServices();
+    services.hosts.getById.mockReturnValue({ name: 'prod' });
+    const manager = new SessionWindowManager(services as never);
+    manager.open('terminal', 'h1', 'session-9');
+
+    expect(manager.closeTerminalSession('session-9')).toBe(true);
+    expect(instances[0].close).toHaveBeenCalled();
+    // Bereits geschlossen / unbekannt -> false (kein Doppel-Close, keine Meldung).
+    expect(manager.closeTerminalSession('session-9')).toBe(false);
+  });
+
+  it('bindTerminalSession ordnet eine selbst-erzeugte Session ihrem Fenster zu', () => {
+    const services = makeServices();
+    const manager = new SessionWindowManager(services as never);
+    manager.open('terminal', 'h1');
+    const win = instances[0];
+
+    manager.bindTerminalSession('session-9', win);
+    expect(manager.closeTerminalSession('session-9')).toBe(true);
+    expect(win.close).toHaveBeenCalled();
+  });
+
+  it('closeSftpHost schliesst alle SFTP-Fenster eines Hosts', () => {
+    const services = makeServices();
+    const manager = new SessionWindowManager(services as never);
+    manager.openSftpWindow('h1');
+    manager.openSftpWindow('h1');
+
+    expect(manager.closeSftpHost('h1')).toBe(true);
+    expect(instances[0].close).toHaveBeenCalled();
+    expect(instances[1].close).toHaveBeenCalled();
+    // Bereits zu -> false.
+    expect(manager.closeSftpHost('h1')).toBe(false);
+  });
+
+  it('schliesst verschiebende Sessions NICHT fuer andere Fenster false-positiv', () => {
+    const services = makeServices();
+    const manager = new SessionWindowManager(services as never);
+    manager.openSftpWindow('h1');
+    manager.openSftpWindow('h2');
+
+    // Nur Host h1 schliessen; h2 bleibt offen.
+    expect(manager.closeSftpHost('h1')).toBe(true);
+    expect(instances[0].close).toHaveBeenCalled();
+    expect(instances[1].close).not.toHaveBeenCalled();
+  });
 });

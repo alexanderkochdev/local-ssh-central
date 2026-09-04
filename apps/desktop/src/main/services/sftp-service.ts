@@ -40,6 +40,8 @@ interface EditSession {
 export class SftpService {
   private readonly connections = new ConnectionManager();
   private readonly handles = new Map<string, ManagedSftp>();
+  /** Clients, an denen bereits ein 'close'-Listener haengt (einmal je Verbindung). */
+  private readonly closeListeners = new Set<Client>();
   private concurrency = 3;
   /** Geteilte Rate-Limiter je Richtung: Obergrenze gilt gesamt fuers ganze SFTP-Subsystem. */
   private readonly uploadLimiter = new RateLimiter(0);
@@ -71,6 +73,12 @@ export class SftpService {
     const config = await this.getConfig(hostId);
     const connectionKey = `sftp:${hostId}`;
     const client = await this.connections.acquire(connectionKey, config);
+    // Einmal je Verbindung den Schliess-Mechanismus beobachten, damit ein unerwartetes
+    // Verbindungsende (Netzwerkabriss, Server-Close) die aktiven SFTP-Fenster melden kann.
+    if (!this.closeListeners.has(client)) {
+      this.closeListeners.add(client);
+      client.on('close', () => this.handleConnectionClose(connectionKey));
+    }
     let sftp: SFTPWrapper;
     try {
       sftp = await new Promise<SFTPWrapper>((resolve, reject) => {
@@ -286,6 +294,30 @@ export class SftpService {
     }
     await this.connections.disposeAll();
     this.handles.clear();
+  }
+
+  /**
+   * Behandelt das physische Ende einer SFTP-Verbindung (netto nicht durch ein Fenster
+   * ausgeloest): Räumt die betroffenen (jetzt unbrauchbaren) Handles auf und meldet
+   * `connectionClosed` an alle Fenster. Wird die Verbindung regulär durch das Schließen
+   * des letzten Fensters beendet, sind keine Handles mehr vorhanden -> kein Event.
+   */
+  private handleConnectionClose(connectionKey: string): void {
+    const dangling = [...this.handles.values()].filter((m) => m.connectionKey === connectionKey);
+    if (dangling.length === 0) {
+      return;
+    }
+    const hostId = dangling[0]!.hostId;
+    for (const m of dangling) {
+      m.transfers.cancelAll();
+    }
+    for (const [handle, m] of this.handles) {
+      if (m.connectionKey === connectionKey) {
+        this.stopEditSessions(handle);
+        this.handles.delete(handle);
+      }
+    }
+    this.emit({ type: 'connectionClosed', hostId });
   }
 
   private require(handle: string): ManagedSftp {

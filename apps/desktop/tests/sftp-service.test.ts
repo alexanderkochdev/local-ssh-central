@@ -103,12 +103,26 @@ function makeSftp() {
   };
 }
 
-/** Fake-Client: sftp() liefert den Fake-Wrapper, end() ist beobachtbar. */
+/** Fake-Client: sftp() liefert den Fake-Wrapper, on() merkt sich 'close'-Listener, end() ist beobachtbar. */
 function makeClient(sftp: ReturnType<typeof makeSftp>) {
-  return {
+  const handlers = new Map<string, Array<(...a: unknown[]) => void>>();
+  const client = {
     sftp: vi.fn((cb: (err: Error | undefined, s?: unknown) => void) => cb(undefined, sftp)),
     end: vi.fn(),
+    on: vi.fn((name: string, fn: (...a: unknown[]) => void) => {
+      const list = handlers.get(name) ?? [];
+      list.push(fn);
+      handlers.set(name, list);
+      return client;
+    }),
+    /** Test-Hook: loest die 'close'-Listener aus (wird von einem echten ssh2-Client ausgeloest). */
+    emitClose: () => {
+      for (const fn of handlers.get('close') ?? []) {
+        fn();
+      }
+    },
   };
+  return client;
 }
 
 beforeEach(() => {
@@ -273,11 +287,39 @@ describe('SftpService', () => {
     const client = {
       sftp: vi.fn((cb: (err: Error) => void) => cb(new Error('sftp unavailable'))),
       end: vi.fn(),
+      on: vi.fn(),
     };
     mocks.cmInstances[0]!.acquire.mockResolvedValue(client);
 
     await expect(service.open('h1')).rejects.toThrow('sftp unavailable');
     expect(mocks.cmInstances[0]!.release).toHaveBeenCalledWith('sftp:h1');
+  });
+
+  it('emittiert connectionClosed, wenn die Verbindung mit offenen Handles endet', async () => {
+    const { service, emit } = makeService();
+    const client = makeClient(makeSftp());
+    mocks.cmInstances[0]!.acquire.mockResolvedValue(client);
+    const { handle } = await service.open('h1');
+    emit.mockClear();
+
+    client.emitClose();
+
+    expect(emit).toHaveBeenCalledWith({ type: 'connectionClosed', hostId: 'h1' });
+    // Das Handle wurde aufgeraeumt -> weitere Nutzung wirft.
+    await expect(service.list(handle, '/')).rejects.toThrow('SFTP-Session nicht gefunden');
+  });
+
+  it('emittiert kein connectionClosed, wenn keine offenen Handles mehr existieren', async () => {
+    const { service, emit } = makeService();
+    const client = makeClient(makeSftp());
+    mocks.cmInstances[0]!.acquire.mockResolvedValue(client);
+    const { handle } = await service.open('h1');
+    service.close(handle);
+    emit.mockClear();
+
+    client.emitClose();
+
+    expect(emit).not.toHaveBeenCalled();
   });
 
   it('openRemoteFile laedt in den Temp-Ordner, ueberwacht und oeffnet', async () => {

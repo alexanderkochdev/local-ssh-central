@@ -195,10 +195,27 @@ app.whenReady().then(async () => {
 
   services.vault = vault;
   services.hosts = hosts;
-  services.ssh = new SshService(getConfig, (event) => emit(IpcChannels.sshEvent, event), persistFingerprint);
+  services.ssh = new SshService(
+    getConfig,
+    (event) => {
+      emit(IpcChannels.sshEvent, event);
+      // Session beendet (Remote-Close, Vault-Lock, disconnect): zugehöriges Terminal-Fenster
+      // automatisch schließen (die Meldung im Hauptfenster liefert bereits das sessionClosed-Event).
+      if (event.type === 'sessionClosed') {
+        sessionWindows?.closeTerminalSession(event.sessionId);
+      }
+    },
+    persistFingerprint,
+  );
   services.sftp = new SftpService(
     getConfig,
-    (event) => emit(IpcChannels.sftpEvent, event),
+    (event) => {
+      emit(IpcChannels.sftpEvent, event);
+      // SFTP-Verbindung unerwartet beendet: die zugehörigen SFTP-Fenster automatisch schließen.
+      if (event.type === 'connectionClosed') {
+        sessionWindows?.closeSftpHost(event.hostId);
+      }
+    },
     persistFingerprint,
     (hostId, dir) => hosts.persistLastSftpDir(hostId, dir),
     (hostId) => hosts.getById(hostId),
