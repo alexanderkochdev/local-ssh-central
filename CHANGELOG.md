@@ -4,6 +4,77 @@ Alle nennenswerten Änderungen an SSH Central werden hier nach dem
 [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)-Format dokumentiert.
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.5.1] - 2026-09-04
+
+> **Automatisches Update**: Installationen ab **v1.4.0** erhalten dieses Update selbst
+> (Windows-Installation und Linux-AppImage werden beim nächsten App-Start angeboten). Nur
+> Installationen **v1.3.0 und älter** (ohne electron-updater) müssen einmalig manuell
+> von der Release-Seite aktualisiert werden.
+
+### Changed (Performance)
+
+- **Plugin-Plattform deutlich beschleunigt** (Analyse + Umsetzung der vier Hauptursachen):
+  - **Berechtigungs-Check ohne wiederholte Disk-Reads**: `PluginManager` liest `permissions.json`
+    und die `package.json`-Default-Berechtigungen jetzt **einmalig** in einen In-Memory-Cache
+    (statt bei **jedem** `terminal.write`/`sftp.upload`/`settings.getAll` usw. ein synchrones
+    `readFileSync` auf dem Main-Thread auszuführen, das das gesamte UI-Loop blockierte). Der
+    Cache wird bei `grant`/`revoke` invalidiert.
+  - **Storage/Secrets mit Cache + Write-through**: `storageGet/Set/Delete` und `secretGet/Set/Delete`
+    lesen die jeweilige JSON-Datei nicht mehr **komplett bei jedem Key-Zugriff** vom Disk, sondern
+    lazy einmal (Storage = Plugin-Daten, Secrets = nur **Ciphertext**, nie Klartext) und schreiben
+    atomar (tmp+rename). Persistenz über Instanzen hinweg bleibt erhalten; Caches werden bei
+    `clear`/`uninstall` verworfen.
+  - **`plugin://`-Static-Asset-Cache**: Die Plugin-UI (HTML/JS/CSS) wird im `registerPluginProtocol`
+    nicht mehr bei **jedem erneuten Laden** (Tab-Wechsel, Refresh) vom Disk gelesen und die
+    `sshCentral`-Bridge nicht mehr neu injiziert — stattdessen werden die Assets gecacht
+    (Invalidierung über `mtime`/`size`, LRU-begrenzt auf 128 Einträge).
+  - **Timeout-Guard für Plugin-Hooks/IPC-Handler**: Ein hängendes/überlanges Plugin (z. B. ein
+    nie auflösender `resolveConnectionConfig`-Middleware oder `ipc.handle`) kann die App nicht
+    mehr dauerhaft einfrieren — die Ausführung läuft mit maximal **10 s**, danach wird abgebrochen
+    (beim Verbindungsaufbau statt schwebendem Zustand). Für synchron blockierende Endlos-Loops
+    ist weiterhin echte Prozess-Isolation (`utilityProcess`) nötig; das ist als Follow-up
+    dokumentiert.
+
+### Fixed
+
+- **Deaktivierte Plugins verschwanden aus der Liste**: `PluginManager.loadDir` übersprang
+  Plugins mit `sshCentral.enabled === false` komplett, wodurch sie nicht in `loaded` landeten
+  und `list()` sie nicht mehr zurückgab — im Plugin-Dialog war ein deaktiviertes Plugin
+  damit nicht mehr sichtbar und nicht wieder aktivierbar (außer manuell in der `package.json`).
+  Jetzt werden **alle** installierten Plugins mit gültigem Manifest gelistet (mit korrektem
+  `enabled`-Zustand für den Schalter), aber nur **aktivierte** werden registriert
+  (keine Hooks/Tabs/Events/IPC). Dadurch lässt sich ein Plugin wieder aktivieren.
+- **Tabs deaktivierter Plugins erschienen im Workspace**: `Workspace.tsx` baute die Tab-Leiste
+  aus allen Plugins, auch deaktivierten. Jetzt werden nur Tabs **aktivierter** Plugins
+  angezeigt (Filter auf `enabled`).
+- **Permission-`settings` war im Plugin-Dialog nicht umschaltbar**: Die Liste der anzeigbaren
+  Berechtigungen enthielt nur `hosts`, `terminal`, `sftp`, `windows` — die zusätzlich
+  existierende Permission `settings` (für `api.settings.getAll`) fehlte und konnte so weder
+  erteilt noch widerrufen werden.
+- **Toter Plugin-Tab blieb als aktive View hängen**: Wurde ein Plugin deaktiviert/deinstalliert,
+  während genau sein Tab aktiv war, blieb der View auf `plugin:<name>:<tabId>` stehen
+  (und zeigte einen Fehler). Jetzt springt die View in diesem Fall automatisch auf
+  `hosts` zurück, sobald das aktive Plugin nicht mehr aktiviert ist (`resolveActiveView`,
+  in `workspace-store.ts`, rein und getestet).
+
+### Changed (Session-Fenster)
+
+- **Terminal-/SFTP-Fenster schließen sich automatisch, wenn die Session endet**, und das
+  Hauptfenster zeigt eine Meldung:
+  - **Terminal (CLI):** Bei `sessionClosed` (Remote-Drop, Vault-Lock, disconnect) wird das
+    zugehörige Terminal-Fenster vom Main-Process geschlossen; die bestehende
+    „Session geschlossen"-Meldung erscheint im Hauptfenster. Ein manuelles Schließen des
+    Fensters bleibt unverändert (kein doppeltes Close, keine falsche Meldung).
+  - **SFTP:** Die Verbindung wird jetzt auf unerwartetes Ende überwacht (ssh2 `close`).
+    Beendet sie sich (Netzwerkabriss, Server-Close, Vault-Lock), werden die zugehörigen
+    SFTP-Fenster geschlossen und im Hauptfenster „SFTP-Verbindung beendet" angezeigt.
+    Das reguläre Schließen des Fensters löst **kein** `connectionClosed` aus
+    (keine offenen Handles → kein Event, keine Meldung).
+  - Neue IPC-Event-Art `connectionClosed` (`SftpEvent`); `SftpService` räumt betroffene
+    Handles automatisch auf. `SessionWindowManager` verfolgt Session-ID/Host → Fenster
+    und deren Keys sind jetzt garantiert eindeutig (Zähler statt nur `Date.now()`, das im
+    selben Millisekunden-Fenster kollidieren konnte).
+
 ## [1.5.0] - 2026-08-31
 
 > **Automatisches Update**: Installationen ab **v1.4.0** erhalten dieses Update selbst
